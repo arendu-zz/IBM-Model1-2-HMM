@@ -1,27 +1,6 @@
 __author__ = 'arenduchintala'
 
-"""
-parameters in model 1:
-delta[k,i,j] = translation[ foreign[k,i], english[k,j]] / sum_j_0toL (translation( foreign[k,i], english[k,j]))
-k = kth sentences in the corpus
-i = ith word in the kth sentence in the foreign corpus
-j = jth word in the kth sentence in the english corpus
-L = total number of words in the kth sentence in the english corpus
-M = total number of words in the kth sentence in the foreign corpus
-"""
-"""
-counts in model 1:
-count[ejk, fik] = count[ejk, fik] + delta[k,i,j]
-count[ejk] = count[ejk] + delta[k,i,j]
-"""
-"""
-translation
-translation[f,e] = c(f,e) / c(e)
-"""
-"""
-for debugging purposes
-https://class.coursera.org/nlangp-001/forum/thread?thread_id=940#post-4052
-"""
+
 import numpy as np
 import pdb, sys, codecs
 from pprint import pprint as pp
@@ -130,10 +109,10 @@ for iter in range(5):
     display_best_alignment(2204, corpus_en[2204], corpus_es[2204])
     display_best_alignment(4942, corpus_en[4942], corpus_es[4942])"""
 
-writer = open('alignment_dev.p2.out', 'w')
+writer = open('alignment_test.p2.out', 'w')
 
-dev_en = open('dev.en', 'r').readlines()
-dev_es = open('dev.es', 'r').readlines()
+dev_en = open('test.en', 'r').readlines()
+dev_es = open('test.es', 'r').readlines()
 for dk in range(len(dev_en)):
     tokens_en = dev_en[dk].split()
     tokens_en.insert(0, 'NULL')
