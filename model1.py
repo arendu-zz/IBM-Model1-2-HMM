@@ -23,8 +23,8 @@ for debugging purposes
 https://class.coursera.org/nlangp-001/forum/thread?thread_id=940#post-4052
 """
 import numpy as np
-import pdb, sys, codecs
-from pprint import pprint as pp
+import sys
+
 
 np.set_printoptions(precision=4, linewidth=180)
 
@@ -39,110 +39,114 @@ def display_best_alignment(ak, en, es):
     print ' '.join(en)
     print ' '.join(es)
     for ik, max_jk in enumerate(np.argmax(k_mat, 1)):
-        print ik, max_jk, corpus_es[ak][ik], corpus_en[ak][max_jk]
+        print ik, max_jk, corpus_target[ak][ik], corpus_source[ak][max_jk]
 
 
-delta = {}
-translations = {}
-counts = {}
-corpus_en = open('corpus.en', 'r').readlines()
-corpus_es = open('corpus.es', 'r').readlines()
-initial_translation = {}
+def parseargs(args):
+    try:
+        source_idx = args.index('-s')
+        target_idx = args.index('-t')
+        source = args[source_idx + 1]
+        target = args[target_idx + 1]
+        initial_translations = args[args.index('-i') + 1]
+        save_translations_learned = args[args.index('-p') + 1]
+        save_alignment_out = args[args.index('-a') + 1]
+        source_alignment_test = args[args.index('-as') + 1]
+        target_alignment_test = args[args.index('-at') + 1]
+        return source, target, initial_translations, save_translations_learned, save_alignment_out, source_alignment_test, target_alignment_test
+    except (ValueError, IndexError) as er:
+        print 'Usage: python model1.py -t [train target] -s [train source] -i [initial translations] -p [save translations] -a [save alignment test] -as [alignment test source] -at [alignment test target]'
+        exit()
 
-"""
-initialization
-"""
-for k, sentence_en in enumerate(corpus_en):
-    sentence_es = corpus_es[k]
-    tokens_en = sentence_en.split()
-    tokens_en.insert(0, 'NULL')
-    tokens_es = sentence_es.split()
-    corpus_en[k] = tokens_en
-    corpus_es[k] = tokens_es
-    for e in tokens_en:
-        n_e = initial_translation.get(e, set())
-        n_e.update(tokens_es)
-        initial_translation[e] = n_e
-#print 'initial n:'
-#pp(initial_translation)
-for k, v in initial_translation.iteritems():
-    for v_es in v:
-        translations[v_es, k] = 1.0 / len(v)
-#print 'initial t:'
-#pp(translations)
-"""
-EM iterations
-"""
 
-for iter in range(5):
-    counts = dict.fromkeys(counts.iterkeys(), 0.0)
-    for k, tokens_en in enumerate(corpus_en):
-        #print iter, k, len(delta), len(translations)
-        sys.stdout.write('iteration: %d sentence %d len delta %d len translations %d\r' % (iter, k, len(delta), len(translations)))
-        sys.stdout.flush()
-        tokens_es = corpus_es[k]
-        t_mat = np.zeros((len(tokens_es), len(tokens_en)))
-        #print t_mat, t_mat.shape
-        for j in range(0, len(tokens_en)):
-            for i in range(0, len(tokens_es)):
-                t_mat[i][j] = translations[tokens_es[i], tokens_en[j]]
-        t_sum = np.sum(t_mat, 1)
-        #print t_mat
-        #print t_sum
-        for j in range(0, len(tokens_en)):
-            for i in range(0, len(tokens_es)):
-                delta[k, i, j] = t_mat[i][j] / t_sum[i]
-                counts[tokens_es[i], tokens_en[j]] = counts.get((tokens_es[i], tokens_en[j]), 0.0) + delta[k, i, j]
-                counts[tokens_en[j]] = counts.get(tokens_en[j], 0.0) + delta[k, i, j]
-                #print tokens_es[i], tokens_en[j], counts[tokens_es[i], tokens_en[j]]
-                #print tokens_en[j], counts[tokens_en[j]]
-                #print 'iteration:', iter, 'sentence', k
-    """
-    update translations
-    """
-    for t_es_i, t_en_j in translations:
-        translations[t_es_i, t_en_j] = counts[t_es_i, t_en_j] / counts[t_en_j]
+if __name__ == "__main__":
+    delta = {}
+    translations = {}
+    counts = {}
+    source, target, init_translation, save_trans, ali_out, ali_source, ali_target = parseargs(sys.argv)
+    corpus_source = open(source, 'r').readlines()
+    corpus_target = open(target, 'r').readlines()
+    init_translation = open(init_translation, 'r').readlines()
+    #corpus_source = corpus_source[:100]
+    #corpus_target = corpus_target[:100]
+
+    for line in init_translation:
+        [t, s, p] = line.split()
+        translations[t, s] = float(p)
 
     """
-    print 'iter', iter
-    print 'delta:'
-    pp(delta)
-    print 'counts:'
-    pp(counts)
-    print 'translations:'
-    pp(translations)
+    EM iterations
     """
-    """
-    check how the alignment looks for a particular training pair, a particular sentence
-    """
+    for iter in range(5):
+        counts = dict.fromkeys(counts.iterkeys(), 0.0)
+        for k, source_sentence in enumerate(corpus_source):
+            #print iter, k, len(delta), len(translations)
+            sys.stdout.write('iteration: %d sentence %d len delta %d len translations %d\r' % (iter, k, len(delta), len(translations)))
+            sys.stdout.flush()
+            target_sentence = corpus_target[k]
+            source_tokens = source_sentence.split()
+            source_tokens.insert(0, 'NULL')
+            target_tokens = target_sentence.split()
+            t_mat = np.zeros((len(target_tokens), len(source_tokens)))
+            for j in range(0, len(source_tokens)):
+                for i in range(0, len(target_tokens)):
+                    t_mat[i][j] = translations[target_tokens[i], source_tokens[j]]
+            t_sum = np.sum(t_mat, 1)
+            #print t_mat
+            #print t_sum
+            for j in range(0, len(source_tokens)):
+                for i in range(0, len(target_tokens)):
+                    delta[k, i, j] = t_mat[i][j] / t_sum[i]
+                    counts[target_tokens[i], source_tokens[j]] = counts.get((target_tokens[i], source_tokens[j]), 0.0) + delta[k, i, j]
+                    counts[source_tokens[j]] = counts.get(source_tokens[j], 0.0) + delta[k, i, j]
+                    #print tokens_es[i], tokens_en[j], counts[tokens_es[i], tokens_en[j]]
+                    #print tokens_en[j], counts[tokens_en[j]]
+                    #print 'iteration:', iter, 'sentence', k
+        """
+        update translations
+        """
+        for target_i, source_j in translations:
+            translations[target_i, source_j] = counts[target_i, source_j] / counts[source_j]
 
-    """display_best_alignment(1012, corpus_en[1012], corpus_es[1012])
-    display_best_alignment(829, corpus_en[829], corpus_es[829])
-    display_best_alignment(2204, corpus_en[2204], corpus_es[2204])
-    display_best_alignment(4942, corpus_en[4942], corpus_es[4942])"""
-writer = open('translations.txt', 'w')
-for k, v in translations.iteritems():
-    writer.write(str(' '.join(k)) + '\t' + str(v) + '\n')
-writer.flush()
-writer.close()
-"""
-writer = open('alignment_test.p1.out', 'w')
+        """
+        print 'iter', iter
+        print 'delta:'
+        pp(delta)
+        print 'counts:'
+        pp(counts)
+        print 'translations:'
+        pp(translations)
+        """
+        """
+        check how the alignment looks for a particular training pair, a particular sentence
+        """
 
-dev_en = open('test.en', 'r').readlines()
-dev_es = open('test.es', 'r').readlines()
-for dk in range(len(dev_en)):
-    tokens_en = dev_en[dk].split()
-    tokens_en.insert(0, 'NULL')
-    tokens_es = dev_es[dk].split()
-    for i, token_es in enumerate(tokens_es):
-        max_p = 0.0
-        max_j = 0.0
-        for j, token_en in enumerate(tokens_en):
-            if translations[token_es, token_en] > max_p:
-                max_p = translations[token_es, token_en]
-                max_j = j
-        if max_j > 0:
-            writer.write(str(dk + 1) + ' ' + str(max_j) + ' ' + str(i + 1) + '\n')
-writer.flush()
-writer.close()
-"""
+        """display_best_alignment(1012, corpus_en[1012], corpus_es[1012])
+        display_best_alignment(829, corpus_en[829], corpus_es[829])
+        display_best_alignment(2204, corpus_en[2204], corpus_es[2204])
+        display_best_alignment(4942, corpus_en[4942], corpus_es[4942])"""
+    writer = open(save_trans, 'w')
+    for k, v in translations.iteritems():
+        writer.write(str(' '.join(k)) + '\t' + str(v) + '\n')
+    writer.flush()
+    writer.close()
+    writer = open(ali_out, 'w')
+
+    test_source = open(ali_source, 'r').readlines()
+    test_target = open(ali_target, 'r').readlines()
+    for dk in range(len(test_source)):
+        source_tokens = test_source[dk].split()
+        source_tokens.insert(0, 'NULL')
+        target_tokens = test_target[dk].split()
+        for i, token_target in enumerate(target_tokens):
+            max_p = 0.0
+            max_j = 0.0
+            for j, token_source in enumerate(source_tokens):
+                if translations[token_target, token_source] > max_p:
+                    max_p = translations[token_target, token_source]
+                    max_j = j
+            if max_j > 0:
+                writer.write(str(dk + 1) + ' ' + str(max_j) + ' ' + str(i + 1) + '\n')
+    writer.flush()
+    writer.close()
+
