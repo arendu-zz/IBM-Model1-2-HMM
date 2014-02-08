@@ -2,6 +2,8 @@ __author__ = 'arenduchintala'
 #import _numpypy.multiarray as np
 import numpy as np
 import logutils as lu
+from math import log, exp
+from pprint import pprint
 import pdb, sys, codecs
 from pprint import pprint as pp
 
@@ -19,7 +21,7 @@ def get_possible_states(target_seq, source_seq):
     sent_count = -1
     for idx, target_token in enumerate(target_seq):
         if target_token == BOUNDRY_STATE:
-            possible_states.append([BOUNDRY_STATE])
+            possible_states.append([(BOUNDRY_STATE, BOUNDRY_STATE)])
             sent_count += 1
         else:
             try:
@@ -36,12 +38,12 @@ def get_possible_states(target_seq, source_seq):
     return possible_states
 
 
-def get_transition(prev_state, current_state):
-    return None
+def get_transition(current_state, prev_state):
+    return alignment_probs.get((current_state, prev_state), float('-inf'))
 
 
 def get_emission(obs, state):
-    return None
+    return translations_probs.get((obs, state), float('-inf'))
 
 
 def do_accumilate_posterior_obs(accumilation_dict, obs, state, posterior_unigram_val):
@@ -101,20 +103,26 @@ def flatten_backpointers(bt):
     return reverse_bt
 
 
-def get_viterbi_and_forward(words):
-    pi = {(0, BOUNDRY_STATE): 0.0}
-    alpha_pi = {(0, BOUNDRY_STATE): 0.0}
+def get_viterbi_and_forward(obs_sequence, trelis):
+    pi = {(0, (BOUNDRY_STATE, BOUNDRY_STATE)): 0.0}
+    alpha_pi = {(0, (BOUNDRY_STATE, BOUNDRY_STATE)): 0.0}
     #pi[(0, START_STATE)] = 1.0  # 0,START_STATE
-    arg_pi = {(0, BOUNDRY_STATE): []}
-    for k in range(1, len(words)):  # the words are numbered from 1 to n, 0 is special start character
-        for v in get_possible_states(words[k]): #[1]:
+    arg_pi = {(0, (BOUNDRY_STATE, BOUNDRY_STATE)): []}
+    for k in range(1, len(obs_sequence)):  # the words are numbered from 1 to n, 0 is special start character
+        for v in trelis[k]:  # [1]:
             max_prob_to_bt = {}
             sum_prob_to_bt = []
-            for u in get_possible_states(words[k - 1]):#[1]:
-                q = get_transition(v, u)
-                e = get_emission(words[k], v)
-                #p = pi[(k - 1, u)] * q * e
-                #alpha_p = alpha_pi[(k - 1, u)] * q * e
+            target_token = obs_sequence[k]
+            source_token = v[1]
+            for u in trelis[k - 1]:  # [1]:
+                aj = v[0]
+                aj_1 = u[0]
+                q = get_transition(aj, aj_1)
+                e = get_emission(target_token, source_token)
+                print k
+                print v, '|', u
+                print aj, '|', aj_1, '=', q
+                print target_token, '|', source_token, '=', e
                 p = pi[(k - 1, u)] + q + e
                 alpha_p = alpha_pi[(k - 1, u)] + q + e
                 if len(arg_pi[(k - 1, u)]) == 0:
@@ -127,9 +135,9 @@ def get_viterbi_and_forward(words):
             max_bt = max_prob_to_bt[max(max_prob_to_bt)]
             new_pi_key = (k, v)
             pi[new_pi_key] = max(max_prob_to_bt)
-            #print 'mu   ', new_pi_key, '=', pi[new_pi_key], exp(pi[new_pi_key])
+            print 'mu   ', new_pi_key, '=', pi[new_pi_key], exp(pi[new_pi_key])
             alpha_pi[new_pi_key] = lu.logadd_of_list(sum_prob_to_bt)
-            #print 'alpha', new_pi_key, '=', alpha_pi[new_pi_key], exp(alpha_pi[new_pi_key])
+            print 'alpha', new_pi_key, '=', alpha_pi[new_pi_key], exp(alpha_pi[new_pi_key])
             arg_pi[new_pi_key] = max_bt
 
     max_bt = max_prob_to_bt[max(max_prob_to_bt)]
@@ -138,24 +146,28 @@ def get_viterbi_and_forward(words):
     return max_bt, max_p, alpha_pi
 
 
-def get_backwards(obs, alpha_pi):
+def get_backwards(obs, trelis, alpha_pi):
     n = len(obs) - 1 # index of last word
-    beta_pi = {(n, BOUNDRY_STATE): 0.0}
+    beta_pi = {(n, (BOUNDRY_STATE, BOUNDRY_STATE)): 0.0}
+    S = alpha_pi[(n, (BOUNDRY_STATE, BOUNDRY_STATE))] # from line 13 in pseudo code
     posterior_unigrams = {}
     posterior_obs_accumilation = {}
     posterior_bigrams_accumilation = {}
-    S = alpha_pi[(n, BOUNDRY_STATE)] # from line 13 in pseudo code
     for k in range(n, 0, -1):
-        for v in get_possible_states(obs[k]):
-            e = get_emission(obs[k], v)
+        for v in trelis[k]:
+            source_token = v[1]
+            target_token = obs[k]
+            e = get_emission(target_token, source_token)
             pb = beta_pi[(k, v)]
             posterior_unigram_val = beta_pi[(k, v)] + alpha_pi[(k, v)] - S
             posterior_obs_accumilation = do_accumilate_posterior_obs(posterior_obs_accumilation, obs[k], v, posterior_unigram_val)
             posterior_unigrams = do_append_posterior_unigrams(posterior_unigrams, k, v, posterior_unigram_val)
 
-            for u in get_possible_states(obs[k - 1]):
+            for u in trelis[k - 1]:
                 #print 'reverse transition', 'k', k, 'u', u, '->', 'v', v
-                q = get_transition(v, u)
+                aj = v[0]
+                aj_1 = u[0]
+                q = get_transition(aj, aj_1)
                 p = q + e
                 beta_p = pb + p
                 new_pi_key = (k - 1, u)
@@ -194,14 +206,14 @@ def format_alignments(init_aligns):
     A = []
     for k, a in sorted(aligns.iteritems()):
         A = A + a
+    A.append(BOUNDRY_STATE)
     return A
 
 
 def get_alignment_mle(init_alignments):
     alignment_mles = {}
     num_alignment_states = len([i for i in init_alignments if i != BOUNDRY_STATE])
-    alignment_bigrams = [(init_alignments[i], init_alignments[i - 1]) for i in range(1, len(init_alignments)) if
-                         init_alignments[i] != BOUNDRY_STATE]
+    alignment_bigrams = [(init_alignments[i], init_alignments[i - 1]) for i in range(1, len(init_alignments))]
     alignments_count = {}
     for ab in alignment_bigrams:
         alignments_count[ab[1]] = alignments_count.get(ab[1], 0) + 1
@@ -211,10 +223,10 @@ def get_alignment_mle(init_alignments):
         if isinstance(ap, tuple):
             #its a bigram
             (aj, aj_1) = ap
-            alignment_mles[ap] = float(alignments_count[ap]) / float(alignments_count[aj_1])
+            alignment_mles[ap] = log(float(alignments_count[ap]) / float(alignments_count[aj_1]))
         else:
             #its a unigram
-            alignment_mles[ap] = float(alignments_count[ap]) / float(num_alignment_states)
+            alignment_mles[ap] = log(float(alignments_count[ap]) / float(num_alignment_states))
 
     #print alignment_bigrams
     #print alignments_count
@@ -226,7 +238,8 @@ def get_translation_mle(init_trans):
     translations_mle = {}
     for line in init_trans:
         [fi, ej, p] = line.split()
-        translations_mle[fi, ej] = float(p)
+        translations_mle[fi, ej] = log(float(p))
+    translations_mle[BOUNDRY_STATE, BOUNDRY_STATE] = 0.0
     return translations_mle
 
 
@@ -260,22 +273,30 @@ if __name__ == "__main__":
     corpus_target = open(target, 'r').readlines()
     init_alignments = format_alignments(open(init_alignments, 'r').readlines())
     init_translations = open(init_translations, 'r').readlines()
-
     joined_source = (BOUNDRY_STATE + ' NULL ').join(corpus_source)
     joined_target = (BOUNDRY_STATE + ' ').join(corpus_target)
     source_tokens = joined_source.split()
     target_tokens = joined_target.split()
     source_tokens.insert(0, 'NULL')
     source_tokens.insert(0, BOUNDRY_STATE)
+    source_tokens.append(BOUNDRY_STATE)
     target_tokens.insert(0, BOUNDRY_STATE)
+    target_tokens.append(BOUNDRY_STATE)
     print source_tokens
     print init_alignments
     print target_tokens
+    print alignment_probs
+    print translations_probs
     alignment_probs = get_alignment_mle(init_alignments)
     translations_probs = get_translation_mle(init_translations)
-    possible_states = get_possible_states(target_tokens, source_tokens)
-    for obs, ps in zip(target_tokens, possible_states):
+    trelis = get_possible_states(target_tokens, source_tokens)
+    for obs, ps in zip(target_tokens, trelis):
         print obs, '<--', ps
+    max_bt, max_p, alpha_pi = get_viterbi_and_forward(target_tokens, trelis)
+    print max_bt
+    print sorted(alpha_pi)
+    get_backwards(target_tokens, trelis, alpha_pi)
+
 
 
 
