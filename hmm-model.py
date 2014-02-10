@@ -48,40 +48,50 @@ def get_emission(obs, state):
 
 def do_accumilate_posterior_obs(accumilation_dict, obs, aj, ei, posterior_unigram_val):
     # these are actual counts in log space!!
-    if ('count_obs', obs) in accumilation_dict:
-        accumilation_dict[('count_obs', obs)] = lu.logadd(accumilation_dict[('count_obs', obs)], posterior_unigram_val)
-    else:
-        accumilation_dict[('count_obs', obs)] = posterior_unigram_val
-    if ('count_state', aj) in accumilation_dict:
-        accumilation_dict[('count_state', aj)] = lu.logadd(accumilation_dict[('count_state', aj)], posterior_unigram_val)
-    else:
-        accumilation_dict[('count_state', aj)] = posterior_unigram_val
+    if isinstance(obs, str) and (not isinstance(aj, tuple)) and isinstance(ei, str):
+        if ('count_obs', obs) in accumilation_dict:
+            accumilation_dict[('count_obs', obs)] = lu.logadd(accumilation_dict[('count_obs', obs)], posterior_unigram_val)
+        else:
+            accumilation_dict[('count_obs', obs)] = posterior_unigram_val
+        if ('count_state', aj) in accumilation_dict:
+            accumilation_dict[('count_state', aj)] = lu.logadd(accumilation_dict[('count_state', aj)], posterior_unigram_val)
+        else:
+            accumilation_dict[('count_state', aj)] = posterior_unigram_val
 
-    if ('count_emission', obs, ei) in accumilation_dict:
-        accumilation_dict[('count_emission', obs, ei)] = lu.logadd(accumilation_dict[('count_emission', obs, ei)], posterior_unigram_val)
+        if ('count_emission', obs, ei) in accumilation_dict:
+            accumilation_dict[('count_emission', obs, ei)] = lu.logadd(accumilation_dict[('count_emission', obs, ei)],
+                                                                       posterior_unigram_val)
+        else:
+            accumilation_dict[('count_emission', obs, ei)] = posterior_unigram_val
+            # doing total counts ...
+        if ('any_emission_from', ei) in accumilation_dict:
+            accumilation_dict[('any_emission_from', ei)] = lu.logadd(accumilation_dict[('any_emission_from', ei)], posterior_unigram_val)
+        else:
+            accumilation_dict[('any_emission_from', ei)] = posterior_unigram_val
+        return accumilation_dict
     else:
-        accumilation_dict[('count_emission', obs, ei)] = posterior_unigram_val
-        # doing total counts ...
-    if ('any_emission_from', ei) in accumilation_dict:
-        accumilation_dict[('any_emission_from', ei)] = lu.logadd(accumilation_dict[('any_emission_from', ei)], posterior_unigram_val)
-    else:
-        accumilation_dict[('any_emission_from', ei)] = posterior_unigram_val
-    return accumilation_dict
+        print 'obs must be string, aj must be str, ei must be string'
+        exit()
 
 
 def do_accumilate_posterior_bigrams(accumilation_dict, aj, aj_1, posterior_bigram_val):
     # these are actual counts in log space!!
-    if ('count_transition', aj, aj_1) not in accumilation_dict:
-        accumilation_dict[('count_transition', aj, aj_1)] = posterior_bigram_val
-    else:
-        accumilation_dict[('count_transition', aj, aj_1)] = lu.logadd(accumilation_dict[('count_transition', aj, aj_1)],
-                                                                      posterior_bigram_val)
+    if not isinstance(aj, tuple) or isinstance(aj_1, tuple):
+        if ('count_transition', aj, aj_1) not in accumilation_dict:
+            accumilation_dict[('count_transition', aj, aj_1)] = posterior_bigram_val
+        else:
+            accumilation_dict[('count_transition', aj, aj_1)] = lu.logadd(accumilation_dict[('count_transition', aj, aj_1)],
+                                                                          posterior_bigram_val)
 
-    if ('any_transition_from', aj_1) not in accumilation_dict:
-        accumilation_dict[('any_transition_from', aj_1)] = posterior_bigram_val
+        if ('any_transition_from', aj_1) not in accumilation_dict:
+            accumilation_dict[('any_transition_from', aj_1)] = posterior_bigram_val
+        else:
+            accumilation_dict[('any_transition_from', aj_1)] = lu.logadd(accumilation_dict[('any_transition_from', aj_1)],
+                                                                         posterior_bigram_val)
+        return accumilation_dict
     else:
-        accumilation_dict[('any_transition_from', aj_1)] = lu.logadd(accumilation_dict[('any_transition_from', aj_1)], posterior_bigram_val)
-    return accumilation_dict
+        print 'aj and aj_1 should be str ### or int', aj, aj_1
+        exit()
 
 
 def do_append_posterior_unigrams(appending_dict, position, state, posterior_unigram_val):
@@ -179,7 +189,8 @@ def get_backwards(obs, trelis, alpha_pi):
                     #print 'beta     ', new_pi_key, '=', beta_pi[new_pi_key], exp(beta_pi[new_pi_key])
                 posterior_bigram_val = alpha_pi[(k - 1, u)] + p + beta_pi[(k, v)] - S
                 #posterior_bigram_val = "%.3f" % (exp(alpha_pi[(k - 1, u)] + p + beta_pi[(k, v)] - S))
-                posterior_bigrams_accumilation = do_accumilate_posterior_bigrams(posterior_bigrams_accumilation, v, u, posterior_bigram_val)
+                posterior_bigrams_accumilation = do_accumilate_posterior_bigrams(posterior_bigrams_accumilation, aj, aj_1,
+                                                                                 posterior_bigram_val)
                 '''
                 if k not in posterior_bigrams:
                     posterior_bigrams[k] = [((u, v), posterior_bigram_val)]
