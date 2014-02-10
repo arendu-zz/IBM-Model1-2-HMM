@@ -46,41 +46,41 @@ def get_emission(obs, state):
     return translations_probs.get((obs, state), float('-inf'))
 
 
-def do_accumilate_posterior_obs(accumilation_dict, obs, state, posterior_unigram_val):
+def do_accumilate_posterior_obs(accumilation_dict, obs, aj, ei, posterior_unigram_val):
     # these are actual counts in log space!!
     if ('count_obs', obs) in accumilation_dict:
         accumilation_dict[('count_obs', obs)] = lu.logadd(accumilation_dict[('count_obs', obs)], posterior_unigram_val)
     else:
         accumilation_dict[('count_obs', obs)] = posterior_unigram_val
-    if ('count_state', state) in accumilation_dict:
-        accumilation_dict[('count_state', state)] = lu.logadd(accumilation_dict[('count_state', state)], posterior_unigram_val)
+    if ('count_state', aj) in accumilation_dict:
+        accumilation_dict[('count_state', aj)] = lu.logadd(accumilation_dict[('count_state', aj)], posterior_unigram_val)
     else:
-        accumilation_dict[('count_state', state)] = posterior_unigram_val
+        accumilation_dict[('count_state', aj)] = posterior_unigram_val
 
-    if ('count_emission', obs, state) in accumilation_dict:
-        accumilation_dict[('count_emission', obs, state)] = lu.logadd(accumilation_dict[('count_emission', obs, state)],
-                                                                      posterior_unigram_val)
+    if ('count_emission', obs, ei) in accumilation_dict:
+        accumilation_dict[('count_emission', obs, ei)] = lu.logadd(accumilation_dict[('count_emission', obs, ei)], posterior_unigram_val)
     else:
-        accumilation_dict[('count_emission', obs, state)] = posterior_unigram_val
+        accumilation_dict[('count_emission', obs, ei)] = posterior_unigram_val
         # doing total counts ...
-    if ('any_emission_from', state) in accumilation_dict:
-        accumilation_dict[('any_emission_from', state)] = lu.logadd(accumilation_dict[('any_emission_from', state)], posterior_unigram_val)
+    if ('any_emission_from', ei) in accumilation_dict:
+        accumilation_dict[('any_emission_from', ei)] = lu.logadd(accumilation_dict[('any_emission_from', ei)], posterior_unigram_val)
     else:
-        accumilation_dict[('any_emission_from', state)] = posterior_unigram_val
+        accumilation_dict[('any_emission_from', ei)] = posterior_unigram_val
     return accumilation_dict
 
 
-def do_accumilate_posterior_bigrams(accumilation_dict, v, u, posterior_bigram_val):
+def do_accumilate_posterior_bigrams(accumilation_dict, aj, aj_1, posterior_bigram_val):
     # these are actual counts in log space!!
-    if ('count_transition', v, u) not in accumilation_dict:
-        accumilation_dict[('count_transition', v, u)] = posterior_bigram_val
+    if ('count_transition', aj, aj_1) not in accumilation_dict:
+        accumilation_dict[('count_transition', aj, aj_1)] = posterior_bigram_val
     else:
-        accumilation_dict[('count_transition', v, u)] = lu.logadd(accumilation_dict[('count_transition', v, u)], posterior_bigram_val)
+        accumilation_dict[('count_transition', aj, aj_1)] = lu.logadd(accumilation_dict[('count_transition', aj, aj_1)],
+                                                                      posterior_bigram_val)
 
-    if ('any_transition_from', u) not in accumilation_dict:
-        accumilation_dict[('any_transition_from', u)] = posterior_bigram_val
+    if ('any_transition_from', aj_1) not in accumilation_dict:
+        accumilation_dict[('any_transition_from', aj_1)] = posterior_bigram_val
     else:
-        accumilation_dict[('any_transition_from', u)] = lu.logadd(accumilation_dict[('any_transition_from', u)], posterior_bigram_val)
+        accumilation_dict[('any_transition_from', aj_1)] = lu.logadd(accumilation_dict[('any_transition_from', aj_1)], posterior_bigram_val)
     return accumilation_dict
 
 
@@ -119,10 +119,10 @@ def get_viterbi_and_forward(obs_sequence, trelis):
                 aj_1 = u[0]
                 q = get_transition(aj, aj_1)
                 e = get_emission(target_token, source_token)
-                print k
+                #print k
                 print v, '|', u
-                print aj, '|', aj_1, '=', q
-                print target_token, '|', source_token, '=', e
+                #print aj, '|', aj_1, '=', q
+                #print target_token, '|', source_token, '=', e
                 p = pi[(k - 1, u)] + q + e
                 alpha_p = alpha_pi[(k - 1, u)] + q + e
                 if len(arg_pi[(k - 1, u)]) == 0:
@@ -147,27 +147,28 @@ def get_viterbi_and_forward(obs_sequence, trelis):
 
 
 def get_backwards(obs, trelis, alpha_pi):
-    n = len(obs) - 1 # index of last word
+    n = len(obs) - 1  # index of last word
     beta_pi = {(n, (BOUNDRY_STATE, BOUNDRY_STATE)): 0.0}
-    S = alpha_pi[(n, (BOUNDRY_STATE, BOUNDRY_STATE))] # from line 13 in pseudo code
+    S = alpha_pi[(n, (BOUNDRY_STATE, BOUNDRY_STATE))]  # from line 13 in pseudo code
     posterior_unigrams = {}
     posterior_obs_accumilation = {}
     posterior_bigrams_accumilation = {}
     for k in range(n, 0, -1):
         for v in trelis[k]:
-            source_token = v[1]
-            target_token = obs[k]
-            e = get_emission(target_token, source_token)
             pb = beta_pi[(k, v)]
+            aj = v[0]
+            source_token = v[1]
             posterior_unigram_val = beta_pi[(k, v)] + alpha_pi[(k, v)] - S
-            posterior_obs_accumilation = do_accumilate_posterior_obs(posterior_obs_accumilation, obs[k], v, posterior_unigram_val)
+            posterior_obs_accumilation = do_accumilate_posterior_obs(posterior_obs_accumilation, obs[k], aj, source_token,
+                                                                     posterior_unigram_val)
             posterior_unigrams = do_append_posterior_unigrams(posterior_unigrams, k, v, posterior_unigram_val)
 
             for u in trelis[k - 1]:
                 #print 'reverse transition', 'k', k, 'u', u, '->', 'v', v
-                aj = v[0]
                 aj_1 = u[0]
                 q = get_transition(aj, aj_1)
+                target_token = obs[k]
+                e = get_emission(target_token, source_token)
                 p = q + e
                 beta_p = pb + p
                 new_pi_key = (k - 1, u)
@@ -185,7 +186,7 @@ def get_backwards(obs, trelis, alpha_pi):
                 else:
                     posterior_bigrams[k].append(((u, v), posterior_bigram_val))
                 '''
-    return posterior_unigrams, posterior_bigrams_accumilation, posterior_obs_accumilation, S
+    return posterior_unigrams, posterior_bigrams_accumilation, posterior_obs_accumilation, S, beta_pi
 
 
 def format_alignments(init_aligns):
@@ -293,9 +294,19 @@ if __name__ == "__main__":
     for obs, ps in zip(target_tokens, trelis):
         print obs, '<--', ps
     max_bt, max_p, alpha_pi = get_viterbi_and_forward(target_tokens, trelis)
-    print max_bt
-    print sorted(alpha_pi)
-    get_backwards(target_tokens, trelis, alpha_pi)
+    posterior_unigrams, posterior_bigrams_accumilation, posterior_obs_accumilation, S, beta_pi = get_backwards(target_tokens, trelis,
+                                                                                                               alpha_pi)
+    print 'alpha pi'
+    pprint(alpha_pi)
+    print 'beta pi'
+    pprint(beta_pi)
+    print 'posterior bigrams'
+    pprint(posterior_bigrams_accumilation)
+    print 'posterior unigrams'
+    pprint(posterior_unigrams)
+    print 'posterior obs'
+    pprint(posterior_obs_accumilation)
+
 
 
 

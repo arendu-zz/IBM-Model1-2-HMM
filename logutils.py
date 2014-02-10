@@ -11,6 +11,8 @@ def logadd(x, y):
     #Todo: handle special case when x,y=0
     if x == 0.0 and y == 0.0:
         return log(exp(x) + exp(y))
+    elif x == float('-inf') and y == float('-inf'):
+        return float('-inf')
     elif x >= y:
         return x + log(1 + exp(y - x))
     else:
