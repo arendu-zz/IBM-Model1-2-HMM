@@ -130,7 +130,7 @@ def get_viterbi_and_forward(obs_sequence, trelis):
                 q = get_transition(aj, aj_1)
                 e = get_emission(target_token, source_token)
                 #print k
-                print v, '|', u
+                #print v, '|', u
                 #print aj, '|', aj_1, '=', q
                 #print target_token, '|', source_token, '=', e
                 p = pi[(k - 1, u)] + q + e
@@ -145,9 +145,9 @@ def get_viterbi_and_forward(obs_sequence, trelis):
             max_bt = max_prob_to_bt[max(max_prob_to_bt)]
             new_pi_key = (k, v)
             pi[new_pi_key] = max(max_prob_to_bt)
-            print 'mu   ', new_pi_key, '=', pi[new_pi_key], exp(pi[new_pi_key])
+            #print 'mu   ', new_pi_key, '=', pi[new_pi_key], exp(pi[new_pi_key])
             alpha_pi[new_pi_key] = lu.logadd_of_list(sum_prob_to_bt)
-            print 'alpha', new_pi_key, '=', alpha_pi[new_pi_key], exp(alpha_pi[new_pi_key])
+            #print 'alpha', new_pi_key, '=', alpha_pi[new_pi_key], exp(alpha_pi[new_pi_key])
             arg_pi[new_pi_key] = max_bt
 
     max_bt = max_prob_to_bt[max(max_prob_to_bt)]
@@ -191,12 +191,6 @@ def get_backwards(obs, trelis, alpha_pi):
                 #posterior_bigram_val = "%.3f" % (exp(alpha_pi[(k - 1, u)] + p + beta_pi[(k, v)] - S))
                 posterior_bigrams_accumilation = do_accumilate_posterior_bigrams(posterior_bigrams_accumilation, aj, aj_1,
                                                                                  posterior_bigram_val)
-                '''
-                if k not in posterior_bigrams:
-                    posterior_bigrams[k] = [((u, v), posterior_bigram_val)]
-                else:
-                    posterior_bigrams[k].append(((u, v), posterior_bigram_val))
-                '''
     return posterior_unigrams, posterior_bigrams_accumilation, posterior_obs_accumilation, S, beta_pi
 
 
@@ -298,7 +292,7 @@ def parseargs(args):
         print 'Usage: python model1.py -t [train target] -s [train source] -it [initial translations]' \
               ' -p [save translations] ' \
               '-a [save alignment test] -as [alignment test source] -at [alignment test target]'
-        return 'dummy.en', 'dummy.es', 'dummy.trans', 'dummy.align', 'hmm-out.trans', 'hmm-out.align', 'x', 'y'
+        return 'dev.en', 'dev.es', 'model1-fwd-out.trans', 'out.ali', 'hmm.trans', 'hmm.align', 'dev.en', 'dev.es'
         #exit()
 
 
@@ -320,40 +314,26 @@ if __name__ == "__main__":
     source_tokens.append(BOUNDRY_STATE)
     target_tokens.insert(0, BOUNDRY_STATE)
     target_tokens.append(BOUNDRY_STATE)
+    '''
     print source_tokens
     print init_alignments
     print target_tokens
     print alignment_probs
     print translations_probs
+    '''
     alignment_probs = get_alignment_mle(init_alignments)
     translations_probs = get_translation_mle(init_translations)
     trelis = get_possible_states(target_tokens, source_tokens)
-    for obs, ps in zip(target_tokens, trelis):
-        print obs, '<--', ps
-    max_bt_0, max_p_0, alpha_pi = get_viterbi_and_forward(target_tokens, trelis)
-    posterior_unigrams, posterior_bigrams_accumilation, posterior_obs_accumilation, S, beta_pi = get_backwards(target_tokens, trelis,
-                                                                                                               alpha_pi)
-    update_alignment_mle(posterior_bigrams_accumilation)
-    update_translation_mle(posterior_obs_accumilation)
-
-    max_bt_1, max_p_1, alpha_pi = get_viterbi_and_forward(target_tokens, trelis)
-    posterior_unigrams, posterior_bigrams_accumilation, posterior_obs_accumilation, S, beta_pi = get_backwards(target_tokens, trelis,
-                                                                                                               alpha_pi)
-
-    update_alignment_mle(posterior_bigrams_accumilation)
-    update_translation_mle(posterior_obs_accumilation)
-    max_bt_2, max_p_2, alpha_pi = get_viterbi_and_forward(target_tokens, trelis)
-    posterior_unigrams, posterior_bigrams_accumilation, posterior_obs_accumilation, S, beta_pi = get_backwards(target_tokens, trelis,
-                                                                                                               alpha_pi)
-
-    update_alignment_mle(posterior_bigrams_accumilation)
-    update_translation_mle(posterior_obs_accumilation)
-    max_bt_3, max_p_3, alpha_pi = get_viterbi_and_forward(target_tokens, trelis)
-    posterior_unigrams, posterior_bigrams_accumilation, posterior_obs_accumilation, S, beta_pi = get_backwards(target_tokens, trelis,
-                                                                                                               alpha_pi)
-    print max_p_0, max_bt_0
-    print max_p_1, max_bt_1
-    print max_p_2, max_bt_2
+    #for obs, ps in zip(target_tokens, trelis):
+    #    print obs, '<--', ps
+    for i in range(5):
+        #pdb.set_trace()
+        max_bt, max_p, alpha_pi = get_viterbi_and_forward(target_tokens, trelis)
+        posterior_unigrams, posterior_bigrams_accumilation, posterior_obs_accumilation, S, beta_pi = get_backwards(target_tokens, trelis,
+                                                                                                                   alpha_pi)
+        update_alignment_mle(posterior_bigrams_accumilation)
+        update_translation_mle(posterior_obs_accumilation)
+        print 'iteration', i, max_p, S
 
 
 
