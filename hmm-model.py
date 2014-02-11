@@ -1,13 +1,12 @@
 __author__ = 'arenduchintala'
 #import _numpypy.multiarray as np
-import numpy as np
 import logutils as lu
 from math import log, exp
 from pprint import pprint
 import pdb, sys, codecs
 from pprint import pprint as pp
 
-np.set_printoptions(precision=4, linewidth=180)
+#np.set_printoptions(precision=4, linewidth=180)
 
 BOUNDRY_STATE = "###"
 alignment_probs = {}
@@ -292,8 +291,8 @@ def parseargs(args):
         print 'Usage: python model1.py -t [train target] -s [train source] -it [initial translations]' \
               ' -p [save translations] ' \
               '-a [save alignment test] -as [alignment test source] -at [alignment test target]'
-        #return 'dummy.en', 'dummy.es', 'dummy.trans', 'dummy.align', 's', 's', 's', 's'
-        return 'corpus.en', 'corpus.es', 'model1-fwd-out.trans', 'out.ali', 'hmm.trans', 'hmm.align', 'corpus.en', 'corpus.es'
+        #return 'dummy.en', 'dummy.es', 'dummy.trans', 'dummy.align', 'hmm.trans', 'hmm.align', 'dummy.en', 'dummy.es'
+        return 'corpus.en', 'corpus.es', 'model1-fwd-out-ed.trans', 'model1-fwd-out-ed.align', 'hmm.trans', 'hmm.align', 'corpus.en', 'corpus.es'
         #exit()
 
 
@@ -327,14 +326,32 @@ if __name__ == "__main__":
     trelis = get_possible_states(target_tokens, source_tokens)
     #for obs, ps in zip(target_tokens, trelis):
     #    print obs, '<--', ps
-    for i in range(5):
-        #pdb.set_trace()
+    for i in range(3):
+        print 'iteration', i
+        print 'fwd'
         max_bt, max_p, alpha_pi = get_viterbi_and_forward(target_tokens, trelis)
+        print 'rev...'
         posterior_unigrams, posterior_bigrams_accumilation, posterior_obs_accumilation, S, beta_pi = get_backwards(target_tokens, trelis,
                                                                                                                    alpha_pi)
+        print 'update...'
         update_alignment_mle(posterior_bigrams_accumilation)
         update_translation_mle(posterior_obs_accumilation)
-        print 'iteration', i, max_p, S
+        print max_p, S
+
+    [final_alignments, final_emissions] = zip(*max_bt)
+    writer = open(save_alignment_out, 'w')
+    i = 0
+    for aj in final_alignments:
+        if aj == '###':
+            i += 1
+            w = 1
+        else:
+            if aj != 0:
+                writer.write(str(i) + ' ' + str(aj) + ' ' + str(w) + '\n')
+            w += 1
+    writer.flush()
+    writer.close()
+
 
 
 
