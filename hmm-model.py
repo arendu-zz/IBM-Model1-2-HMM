@@ -246,6 +246,32 @@ def get_alignment_mle(init_alignments):
     return alignment_mles
 
 
+def update_alignment_mle(posterior_alignment_counts):
+    for k in posterior_alignment_counts:
+        if k[0] == 'count_transition':
+            (comment, aj, aj_1) = k
+            count_ajaj_1 = posterior_alignment_counts['count_transition', aj, aj_1]
+            count_aj_1 = posterior_alignment_counts['any_transition_from', aj_1]
+            if count_aj_1 == float('-inf'):
+                alignment_probs[aj, aj_1] = float('-inf')
+            else:
+                alignment_probs[aj, aj_1] = count_ajaj_1 - count_aj_1
+        else:
+            (comment, aj_1) = k
+            count_aj_1 = posterior_alignment_counts['any_transition_from', aj_1]
+            alignment_probs[aj_1] = count_aj_1
+
+
+def update_translation_mle(posterior_emission_counts):
+    for f, e in translations_probs:
+        counts_fe = posterior_emission_counts['count_emission', f, e]
+        count_e = posterior_emission_counts['any_emission_from', e]
+        if count_e == float('-inf'):
+            translations_probs[f, e] = float('-inf')
+        else:
+            translations_probs[f, e] = counts_fe - count_e
+
+
 def get_translation_mle(init_trans):
     translations_mle = {}
     for line in init_trans:
@@ -304,20 +330,30 @@ if __name__ == "__main__":
     trelis = get_possible_states(target_tokens, source_tokens)
     for obs, ps in zip(target_tokens, trelis):
         print obs, '<--', ps
-    max_bt, max_p, alpha_pi = get_viterbi_and_forward(target_tokens, trelis)
+    max_bt_0, max_p_0, alpha_pi = get_viterbi_and_forward(target_tokens, trelis)
     posterior_unigrams, posterior_bigrams_accumilation, posterior_obs_accumilation, S, beta_pi = get_backwards(target_tokens, trelis,
                                                                                                                alpha_pi)
-    print 'alpha pi'
-    pprint(alpha_pi)
-    print 'beta pi'
-    pprint(beta_pi)
-    print 'posterior bigrams'
-    pprint(posterior_bigrams_accumilation)
-    print 'posterior unigrams'
-    pprint(posterior_unigrams)
-    print 'posterior obs'
-    pprint(posterior_obs_accumilation)
+    update_alignment_mle(posterior_bigrams_accumilation)
+    update_translation_mle(posterior_obs_accumilation)
 
+    max_bt_1, max_p_1, alpha_pi = get_viterbi_and_forward(target_tokens, trelis)
+    posterior_unigrams, posterior_bigrams_accumilation, posterior_obs_accumilation, S, beta_pi = get_backwards(target_tokens, trelis,
+                                                                                                               alpha_pi)
+
+    update_alignment_mle(posterior_bigrams_accumilation)
+    update_translation_mle(posterior_obs_accumilation)
+    max_bt_2, max_p_2, alpha_pi = get_viterbi_and_forward(target_tokens, trelis)
+    posterior_unigrams, posterior_bigrams_accumilation, posterior_obs_accumilation, S, beta_pi = get_backwards(target_tokens, trelis,
+                                                                                                               alpha_pi)
+
+    update_alignment_mle(posterior_bigrams_accumilation)
+    update_translation_mle(posterior_obs_accumilation)
+    max_bt_3, max_p_3, alpha_pi = get_viterbi_and_forward(target_tokens, trelis)
+    posterior_unigrams, posterior_bigrams_accumilation, posterior_obs_accumilation, S, beta_pi = get_backwards(target_tokens, trelis,
+                                                                                                               alpha_pi)
+    print max_p_0, max_bt_0
+    print max_p_1, max_bt_1
+    print max_p_2, max_bt_2
 
 
 
