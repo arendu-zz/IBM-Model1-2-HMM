@@ -292,7 +292,8 @@ def parseargs(args):
         print 'Usage: python model1.py -t [train target] -s [train source] -it [initial translations]' \
               ' -p [save translations] ' \
               '-a [save alignment test] -as [alignment test source] -at [alignment test target]'
-        return 'dev.en', 'dev.es', 'model1-fwd-out.trans', 'out.ali', 'hmm.trans', 'hmm.align', 'dev.en', 'dev.es'
+        #return 'dummy.en', 'dummy.es', 'dummy.trans', 'dummy.align', 's', 's', 's', 's'
+        return 'corpus.en', 'corpus.es', 'model1-fwd-out.trans', 'out.ali', 'hmm.trans', 'hmm.align', 'corpus.en', 'corpus.es'
         #exit()
 
 
