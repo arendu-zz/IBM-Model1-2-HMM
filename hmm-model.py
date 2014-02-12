@@ -1,7 +1,7 @@
 __author__ = 'arenduchintala'
 #import _numpypy.multiarray as np
 import logutils as lu
-from math import log, exp
+from math import log, exp, fabs
 from pprint import pprint
 import pdb, sys, codecs
 from pprint import pprint as pp
@@ -10,13 +10,24 @@ from pprint import pprint as pp
 
 BOUNDRY_STATE = "###"
 alignment_probs = {}
+jump_counts = {}
 translations_probs = {}
 
 
+def jump_key(j1, j0):
+    if j1 == BOUNDRY_STATE or j0 == BOUNDRY_STATE:
+        return jump_counts.get((j1, j0), 0.0)
+    else:
+        return jump_counts.get(fabs(j1 - j0), 0.0)
+
+
 def get_possible_states(target_seq, source_seq):
+    #TODO: make a list which has the sentence length for each index of the sentence using start_markers and source_lengths
     possible_states = []
     target_start_idx = [i for i, x in enumerate(target_seq) if x == BOUNDRY_STATE]
     source_start_idx = [i for i, x in enumerate(source_seq) if x == BOUNDRY_STATE]
+    source_lengths = [source_start_idx[i] - (source_start_idx[i - 1] + 1) for i in xrange(1, len(source_start_idx))]
+
     sent_count = -1
     for idx, target_token in enumerate(target_seq):
         if target_token == BOUNDRY_STATE:
@@ -34,7 +45,16 @@ def get_possible_states(target_seq, source_seq):
             current_source_sentence = source_seq[source_start_idx[sent_count] + 1:es]
             ps = [(i, st) for i, st in enumerate(current_source_sentence)]
             possible_states.append(ps)
-    return possible_states
+    return possible_states, None
+
+
+def get_jump_transition(current_state, prev_state, L):
+    s = jump_key(current_state, prev_state)
+    j = [jump_key(l, prev_state) for l in range(L)]
+    if sum(j) == 0:
+        return 0.0
+    else:
+        return float(s) / float(sum(j))
 
 
 def get_transition(current_state, prev_state):
@@ -126,7 +146,9 @@ def get_viterbi_and_forward(obs_sequence, trelis):
             for u in trelis[k - 1]:  # [1]:
                 aj = v[0]
                 aj_1 = u[0]
+                qj = get_jump_transition(aj, aj_1, len(trelis[k]))
                 q = get_transition(aj, aj_1)
+                print q, 'vs', qj, (aj, aj_1)
                 e = get_emission(target_token, source_token)
                 #print k
                 #print v, '|', u
@@ -215,6 +237,20 @@ def format_alignments(init_aligns):
     return A
 
 
+def get_jump_width_mle(init_alignments, source_tokens):
+    start_markers = [i for i, s in enumerate(source_tokens) if s == BOUNDRY_STATE]
+    source_lengths = [start_markers[i] - (start_markers[i - 1] + 1) for i in xrange(1, len(start_markers))]
+    alignment_bigrams = [(init_alignments[i], init_alignments[i - 1]) for i in range(1, len(init_alignments))]
+    sent_i = -1
+    for j0, j1 in alignment_bigrams:
+        if j0 == BOUNDRY_STATE or j1 == BOUNDRY_STATE:
+            jump_counts[j0, j1] = jump_counts.get((j0, j1), 0.0) + 1
+            sent_i += 1
+        else:
+            jump_counts[fabs(j1 - j0)] = jump_counts.get(fabs(j0 - j1), 0.0) + 1
+    return None
+
+
 def get_alignment_mle(init_alignments):
     alignment_mles = {}
     num_alignment_states = len([i for i in init_alignments if i != BOUNDRY_STATE])
@@ -257,19 +293,25 @@ def update_alignment_mle(posterior_alignment_counts):
 
 def update_translation_mle(posterior_emission_counts):
     for f, e in translations_probs:
-        counts_fe = posterior_emission_counts['count_emission', f, e]
-        count_e = posterior_emission_counts['any_emission_from', e]
-        if count_e == float('-inf'):
-            translations_probs[f, e] = float('-inf')
-        else:
-            translations_probs[f, e] = counts_fe - count_e
+        try:
+            counts_fe = posterior_emission_counts['count_emission', f, e]
+            count_e = posterior_emission_counts['any_emission_from', e]
+            if count_e == float('-inf'):
+                translations_probs[f, e] = float('-inf')
+            else:
+                translations_probs[f, e] = counts_fe - count_e
+        except IndexError:
+            print 'could not file translation prob:', f, e
 
 
 def get_translation_mle(init_trans):
     translations_mle = {}
     for line in init_trans:
         [fi, ej, p] = line.split()
-        translations_mle[fi, ej] = log(float(p))
+        if float(p) != 0.0:
+            translations_mle[fi, ej] = log(float(p))
+        else:
+            translations_mle[fi, ej] = float('-inf')
     translations_mle[BOUNDRY_STATE, BOUNDRY_STATE] = 0.0
     return translations_mle
 
@@ -291,8 +333,8 @@ def parseargs(args):
         print 'Usage: python model1.py -t [train target] -s [train source] -it [initial translations]' \
               ' -p [save translations] ' \
               '-a [save alignment test] -as [alignment test source] -at [alignment test target]'
-        #return 'dummy.en', 'dummy.es', 'dummy.trans', 'dummy.align', 'hmm.trans', 'hmm.align', 'dummy.en', 'dummy.es'
-        return 'corpus.en', 'corpus.es', 'model1-fwd-out-ed.trans', 'model1-fwd-out-ed.align', 'hmm.trans', 'hmm.align', 'corpus.en', 'corpus.es'
+        return 'dummy.en', 'dummy.es', 'dummy.trans', 'dummy.align', 'hmm.trans', 'hmm.align', 'dummy.en', 'dummy.es'
+        #return 'corpus.en', 'corpus.es', 'model1-fwd-out-ed.trans', 'model1-fwd-out-ed.align', 'hmm.trans', 'hmm.align', 'corpus.en', 'corpus.es'
         #exit()
 
 
@@ -309,7 +351,8 @@ if __name__ == "__main__":
     joined_target = (BOUNDRY_STATE + ' ').join(corpus_target)
     source_tokens = joined_source.split()
     target_tokens = joined_target.split()
-    source_tokens.insert(0, 'NULL')
+
+    source_tokens.insert(0, 'NULL')  # for the first and last caps
     source_tokens.insert(0, BOUNDRY_STATE)
     source_tokens.append(BOUNDRY_STATE)
     target_tokens.insert(0, BOUNDRY_STATE)
@@ -321,12 +364,15 @@ if __name__ == "__main__":
     print alignment_probs
     print translations_probs
     '''
+    get_jump_width_mle(init_alignments, source_tokens)
     alignment_probs = get_alignment_mle(init_alignments)
     translations_probs = get_translation_mle(init_translations)
-    trelis = get_possible_states(target_tokens, source_tokens)
+    trelis, len_markers = get_possible_states(target_tokens, source_tokens)
     #for obs, ps in zip(target_tokens, trelis):
     #    print obs, '<--', ps
-    for i in range(3):
+
+
+    for i in range(5):
         print 'iteration', i
         print 'fwd'
         max_bt, max_p, alpha_pi = get_viterbi_and_forward(target_tokens, trelis)
@@ -337,11 +383,12 @@ if __name__ == "__main__":
         update_alignment_mle(posterior_bigrams_accumilation)
         update_translation_mle(posterior_obs_accumilation)
         print max_p, S
+        [out_alignments, out_emissions] = zip(*max_bt)
+        print out_alignments
 
-    [final_alignments, final_emissions] = zip(*max_bt)
     writer = open(save_alignment_out, 'w')
     i = 0
-    for aj in final_alignments:
+    for aj in out_alignments:
         if aj == '###':
             i += 1
             w = 1
@@ -351,6 +398,7 @@ if __name__ == "__main__":
             w += 1
     writer.flush()
     writer.close()
+
 
 
 
