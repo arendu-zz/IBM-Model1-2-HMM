@@ -24,7 +24,25 @@ def jump_key(j1, j0):
 def get_trelis(target_seq, source_seq):
     target_trelis = [(i - 1, w) for i, w in enumerate(source_seq) if w != BOUNDRY_STATE]
     trelis = [[(BOUNDRY_STATE, BOUNDRY_STATE)]] + [target_trelis] * (len(target_seq) - 2) + [[(BOUNDRY_STATE, BOUNDRY_STATE)]]
-    return trelis
+    t = []
+    for f in target_seq:
+        if f == BOUNDRY_STATE:
+            t.append([(BOUNDRY_STATE, BOUNDRY_STATE)])
+        else:
+            tups = [(translations_probs.get((f, e), float('-inf')), f, (i, e)) for i, e in enumerate(source_seq[1:-1])]
+            tups.sort(reverse=True)
+            if len(source_seq) > 5 and len(source_seq) < 15:
+                tups = tups[:int(len(tups) * 0.5)]
+            elif len(source_seq) >= 15 and len(source_seq) < 35:
+                tups = tups[:int(len(tups) * 0.3)]
+            elif len(source_seq) >= 35:
+                tups = tups[:int(len(tups) * 0.1)]
+            (ps, fs, ts) = zip(*tups)
+            t.append(list(ts))
+    #pprint(trelis)
+    #pprint(t)
+    #pdb.set_trace()
+    return t
 
 
 def get_jump_transition(current_state, prev_state, L):
@@ -271,8 +289,8 @@ def update_translation_mle(posterior_emission_counts):
                 translations_probs[f, e] = float('-inf')
             else:
                 translations_probs[f, e] = counts_fe - count_e
-        except IndexError:
-            print 'could not file translation prob:', f, e
+        except KeyError:
+            pass
 
 
 def get_translation_mle(init_trans):
@@ -304,8 +322,8 @@ def parseargs(args):
         print 'Usage: python model1.py -t [train target] -s [train source] -it [initial translations]' \
               ' -p [save translations] ' \
               '-a [save alignment test] -as [alignment test source] -at [alignment test target]'
-        return 'dummy.en', 'dummy.es', 'dummy.trans', 'dummy.align', 'hmm.trans', 'hmm.align', 'dummy.en', 'dummy.es'
-        #return 'corpus.en', 'corpus.es', 'model1-fwd-out-ed.trans', 'model1-fwd-out-ed.align', 'hmm.trans', 'hmm.align', 'corpus.en', 'corpus.es'
+        #return 'dummy.en', 'dummy.es', 'dummy.trans', 'dummy.align', 'hmm.trans', 'hmm.align', 'dummy.en', 'dummy.es'
+        return 'corpus.en', 'corpus.es', 'model1-fwd-out.trans', 'model1-fwd-out.align', 'hmm.trans', 'hmm.align', 'dev.en', 'dev.es'
         #exit()
 
 
@@ -323,6 +341,10 @@ if __name__ == "__main__":
 
     corpus_source = open(source, 'r').readlines()
     corpus_target = open(target, 'r').readlines()
+    z = [(s, t) for s, t in zip(corpus_source, corpus_target) if (s.strip() != '' and t.strip() != '')]
+    cs, ct = zip(*z)
+    corpus_source = list(cs)
+    corpus_target = list(ct)
     alignment_split = format_alignments(open(init_alignments, 'r').readlines())
     init_translations = open(init_translations, 'r').readlines()
 
@@ -341,13 +363,14 @@ if __name__ == "__main__":
 
     #SEE TODO in get_possible_states function.
     for i in range(5):
-        print 'iteration', i
+
         accu_alpha = 0.0
         accu_mu = 0.0
         posterior_transitions_accumilation = {}
         posterior_emission_accumilation = {}
         final_alignments = []
-        for e, f, t in zip(source_split, target_split, trelis_split):
+        for idx, (e, f, t) in enumerate(zip(source_split, target_split, trelis_split)):
+
             max_bt, max_p, alpha_pi = get_viterbi_and_forward(f, t)
             posterior_uni, posterior_trans, posterior_emission, S, beta_pi = get_backwards(f, t, alpha_pi)
             accu_alpha += S
@@ -356,10 +379,13 @@ if __name__ == "__main__":
             posterior_emission_accumilation = accumilate(posterior_emission_accumilation, posterior_emission)
             [out_alignments, out_emissions] = zip(*max_bt)
             final_alignments = final_alignments + list(out_alignments)
+            print 'iteration', i, 'sentence', idx, 'accumilated_alpha', accu_alpha
         update_translation_mle(posterior_emission_accumilation)
         update_alignment_mle(posterior_transitions_accumilation)
         print accu_mu, accu_alpha
-        print final_alignments
+        print out_emissions
+        print f
+        pdb.set_trace()
 
 '''
 writer = open(save_alignment_out, 'w')
