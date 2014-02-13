@@ -207,8 +207,7 @@ def format_alignments(init_aligns):
         aligns[snum] = a
     A = []
     for k, a in sorted(aligns.iteritems()):
-        A = A + a
-    A.append(BOUNDRY_STATE)
+        A.append(a + [BOUNDRY_STATE])
     return A
 
 
@@ -228,12 +227,14 @@ def get_jump_width_mle(init_alignments, source_tokens):
 
 def get_alignment_mle(init_alignments):
     alignment_mles = {}
-    num_alignment_states = len([i for i in init_alignments if i != BOUNDRY_STATE])
-    alignment_bigrams = [(init_alignments[i], init_alignments[i - 1]) for i in range(1, len(init_alignments))]
     alignments_count = {}
-    for ab in alignment_bigrams:
-        alignments_count[ab[1]] = alignments_count.get(ab[1], 0) + 1
-        alignments_count[ab] = alignments_count.get(ab, 0) + 1
+    for a in init_alignments:
+        num_alignment_states = len(a) - 2
+        alignment_bigrams = [(a[i], a[i - 1]) for i in range(1, len(a))]
+
+        for ab in alignment_bigrams:
+            alignments_count[ab[1]] = alignments_count.get(ab[1], 0) + 1
+            alignments_count[ab] = alignments_count.get(ab, 0) + 1
 
     for ap in alignments_count:
         if isinstance(ap, tuple):
@@ -322,42 +323,22 @@ if __name__ == "__main__":
 
     corpus_source = open(source, 'r').readlines()
     corpus_target = open(target, 'r').readlines()
-    init_alignments = format_alignments(open(init_alignments, 'r').readlines())
+    alignment_split = format_alignments(open(init_alignments, 'r').readlines())
     init_translations = open(init_translations, 'r').readlines()
-    joined_source = (BOUNDRY_STATE + ' NULL ').join(corpus_source)
-    joined_target = (BOUNDRY_STATE + ' ').join(corpus_target)
-    source_tokens = joined_source.split()
-    target_tokens = joined_target.split()
 
-    source_tokens.insert(0, 'NULL')  # for the first and last caps
-    source_tokens.insert(0, BOUNDRY_STATE)
-    source_tokens.append(BOUNDRY_STATE)
-    target_tokens.insert(0, BOUNDRY_STATE)
-    target_tokens.append(BOUNDRY_STATE)
+    source_split = [[BOUNDRY_STATE, 'NULL'] + i.split() + [BOUNDRY_STATE] for i in corpus_source]
 
-    source_start_idx = [i for i, x in enumerate(source_tokens) if x == BOUNDRY_STATE]
-    source_split = [source_tokens[source_start_idx[i - 1]:source_start_idx[i]] + [BOUNDRY_STATE] for i in range(1, len(source_start_idx))]
+    target_split = [[BOUNDRY_STATE] + i.split() + [BOUNDRY_STATE] for i in corpus_target]
 
-    target_start_idx = [i for i, x in enumerate(target_tokens) if x == BOUNDRY_STATE]
-    target_split = [target_tokens[target_start_idx[i - 1]:target_start_idx[i]] + [BOUNDRY_STATE] for i in range(1, len(target_start_idx))]
-    alignment_split = [init_alignments[target_start_idx[i - 1]:target_start_idx[i]] + [BOUNDRY_STATE] for i in
-                       range(1, len(target_start_idx))]
-
-    alignment_probs = get_alignment_mle(init_alignments)
+    alignment_probs = get_alignment_mle(alignment_split)
     translations_probs = get_translation_mle(init_translations)
     #for obs, ps in zip(target_tokens, trelis):
     #    print obs, '<--', ps
     trelis_split = []
-    trelis = []
     for e, f in zip(source_split, target_split):
         t = get_trelis(f, e)
         trelis_split.append(t)
-        trelis = trelis + t[:-1]
-    trelis.append([(BOUNDRY_STATE, BOUNDRY_STATE)])
 
-    f = target_tokens
-    e = source_tokens
-    t = trelis
     #SEE TODO in get_possible_states function.
     for i in range(5):
         print 'iteration', i
@@ -365,6 +346,7 @@ if __name__ == "__main__":
         accu_mu = 0.0
         posterior_transitions_accumilation = {}
         posterior_emission_accumilation = {}
+        final_alignments = []
         for e, f, t in zip(source_split, target_split, trelis_split):
             max_bt, max_p, alpha_pi = get_viterbi_and_forward(f, t)
             posterior_uni, posterior_trans, posterior_emission, S, beta_pi = get_backwards(f, t, alpha_pi)
@@ -373,12 +355,11 @@ if __name__ == "__main__":
             posterior_transitions_accumilation = accumilate(posterior_transitions_accumilation, posterior_trans)
             posterior_emission_accumilation = accumilate(posterior_emission_accumilation, posterior_emission)
             [out_alignments, out_emissions] = zip(*max_bt)
-            print 'poop', out_alignments
+            final_alignments = final_alignments + list(out_alignments)
         update_translation_mle(posterior_emission_accumilation)
         update_alignment_mle(posterior_transitions_accumilation)
         print accu_mu, accu_alpha
-pprint(translations_probs)
-pprint(alignment_probs)
+        print final_alignments
 
 '''
 writer = open(save_alignment_out, 'w')
