@@ -406,7 +406,7 @@ if __name__ == "__main__":
         t = get_trelis(f, e)
         trelis_split.append(t)
 
-    for i in range(9):
+    for i in range(10):
         accu_alpha = 0.0
         accu_mu = 0.0
         posterior_transitions_accumilation = {}
@@ -422,14 +422,12 @@ if __name__ == "__main__":
             posterior_emission_accumilation = accumilate(posterior_emission_accumilation, posterior_emission)
             [out_alignments, out_emissions] = zip(*max_bt)
             final_alignments = final_alignments + list(out_alignments)
-            #print 'iteration', i, 'sentence', idx, 'accumilated_mu', accu_mu, 'accumilated_alpha', accu_alpha
-            #print out_alignments
 
         update_translation_mle(posterior_emission_accumilation)
         #update_alignment_mle(posterior_transitions_accumilation)
         update_jump_alignment_mle(posterior_transitions_accumilation)
-        print 'iteration', i, 'accumilated_mu', accu_mu, 'accumilated_alpha', accu_alpha
-        '''
+        print 'iteration', i, 'mu', accu_mu, 'alpha', accu_alpha
+        #pdb.set_trace()
         writer = open(save_alignment_out + '-' + str(i), 'w')
         ia = 0
         for aj in final_alignments:
@@ -442,7 +440,6 @@ if __name__ == "__main__":
                 w += 1
         writer.flush()
         writer.close()
-        '''
 
 
 
