@@ -27,3 +27,11 @@ def logadd_of_list(a_list):
     for i in a_list[1:]:
         logsum = logadd(logsum, i)
     return logsum
+
+
+def normpdf(x, mean, sd):
+    var = float(sd) ** 2
+    pi = 3.1415926
+    denom = (2 * pi * var) ** .5
+    num = exp(-(float(x) - float(mean)) ** 2 / (2 * var))
+    return num / denom
