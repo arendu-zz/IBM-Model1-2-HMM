@@ -406,7 +406,7 @@ if __name__ == "__main__":
         t = get_trelis(f, e)
         trelis_split.append(t)
 
-    for i in range(10):
+    for i in range(5):
         accu_alpha = 0.0
         accu_mu = 0.0
         posterior_transitions_accumilation = {}

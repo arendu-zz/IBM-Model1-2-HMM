@@ -1,12 +1,12 @@
 __author__ = 'arenduchintala'
-#import _numpypy.multiarray as np
+# import _numpypy.multiarray as np
 import logutils as lu
 from math import log, exp, fabs
 from pprint import pprint
 import pdb, sys, codecs
 from collections import Counter
 
-#np.set_printoptions(precision=4, linewidth=180)
+# np.set_printoptions(precision=4, linewidth=180)
 
 BOUNDRY_STATE = "###"
 alignment_probs = {}
@@ -143,6 +143,7 @@ def get_viterbi_and_forward(obs_sequence, trelis):
             for u in trelis[k - 1]:  # [1]:
                 aj = v[0]
                 aj_1 = u[0]
+                pdb.set_trace()
                 q = get_transition(aj, aj_1)
                 e = get_emission(target_token, source_token)
                 #print k
@@ -361,6 +362,7 @@ if __name__ == "__main__":
         t = get_trelis(f, e)
         trelis_split.append(t)
 
+    #SEE TODO in get_possible_states function.
     for i in range(10):
 
         accu_alpha = 0.0
@@ -381,9 +383,9 @@ if __name__ == "__main__":
             #print 'iteration', i, 'sentence', idx, 'accumilated_alpha', accu_alpha
         update_translation_mle(posterior_emission_accumilation)
         update_alignment_mle(posterior_transitions_accumilation)
-        print 'iteration',i,'mu',accu_mu,'alpha', accu_alpha
+        print 'iteration', i, 'mu', accu_mu, 'alpha', accu_alpha
         #pdb.set_trace()
-        writer = open(save_alignment_out+'-'+str(i), 'w')
+        writer = open(save_alignment_out + '-' + str(i), 'w')
         ia = 0
         for aj in final_alignments:
             if aj == '###':
