@@ -1,12 +1,12 @@
 __author__ = 'arenduchintala'
-#import _numpypy.multiarray as np
+# import _numpypy.multiarray as np
 import logutils as lu
 from math import log, exp, fabs
 from pprint import pprint
 import pdb, sys, codecs
 from collections import Counter
 
-#np.set_printoptions(precision=4, linewidth=180)
+# np.set_printoptions(precision=4, linewidth=180)
 
 BOUNDRY_STATE = "###"
 alignment_probs = {}
@@ -19,7 +19,7 @@ def jump_key(j1, j0):
     if j1 == BOUNDRY_STATE or j0 == BOUNDRY_STATE:
         return 'count', j1, j0
     else:
-        return 'count', j1 - j0
+        return 'count', fabs(j1 - j0)  # eq (5) assume non-negative jump widths!
 
 
 def jump_iip_key(L, i_prime):
@@ -36,29 +36,43 @@ def get_trelis(target_seq, source_seq):
         else:
             tups = [(translations_probs.get((f, e), float('-inf')), f, (i, e)) for i, e in enumerate(source_seq[1:-1])]
             tups.sort(reverse=True)
-            '''
-            if len(source_seq) > 5 and len(source_seq) < 15:
-                tups = tups[:int(len(tups) * 0.5)]
-            elif len(source_seq) >= 15 and len(source_seq) < 35:
-                tups = tups[:int(len(tups) * 0.3)]
-            elif len(source_seq) >= 35:
-                tups = tups[:int(len(tups) * 0.1)]
-            '''
+            # if len(source_seq) > 5 and len(source_seq) < 15:
+            # tups = tups[:int(len(tups) * 0.75)]
+            # elif len(source_seq) >= 15 and len(source_seq) < 35:
+            # tups = tups[:int(len(tups) * 0.5)]
+            # if len(source_seq) >= 35:
+            # tups = tups[:int(len(tups) * 0.3)]
+            tups = tups[:10]  # beam limited to 10
             (ps, fs, ts) = zip(*tups)
             t.append(list(ts))
-    #pprint(trelis)
-    #pprint(t)
-    #pdb.set_trace()
+    # pprint(trelis)
+    # pprint(t)
+    # #pdb.set_trace()
     return t
 
 
 def get_jump_transition(current_state, prev_state, sent_length):
+    '''
+    This method implements eq (5) in the Vogel & Ney paper (HMM-Based Word Alignment in Statistical Translation)
+    it returns the probability P(aj | aj-1, L)
+    '''
     jkey = jump_key(current_state, prev_state)
-    jiip_key = jump_iip_key(sent_length, prev_state)
-    if jkey not in jump_counts or jiip_key not in jump_counts_iip:
-        return float('-inf')
+    # jiip_key = jump_iip_key(sent_length, prev_state)
+    # if jkey not in jump_counts or jiip_key not in jump_counts_iip:
+    # pdb.set_trace()
+    # return float('-inf')
+    # else:
+    # return jump_counts[jkey] - jump_counts_iip[jiip_key]
+    if jkey in jump_counts:
+        # TODO this demon computation can be reused!
+        denom = float('-inf')
+        for l in range(sent_length):
+            jl_key = jump_key(l, prev_state)
+            denom = lu.logadd(denom, jump_counts.get(jl_key, float('-inf')))
+        return jump_counts[jkey] - denom
     else:
-        return jump_counts[jkey] - jump_counts_iip[jiip_key]
+        # print current_state, prev_state, sent_length
+        return float('-inf')
 
 
 def get_transition(current_state, prev_state):
@@ -71,7 +85,7 @@ def get_emission(obs, state):
 
 def do_accumilate_posterior_obs(accumilation_dict, obs, aj, ei, posterior_unigram_val):
     # these are actual counts in log space!!
-    if isinstance(obs, str) and (not isinstance(aj, tuple)) and isinstance(ei, str):
+    if isinstance(obs, basestring) and (not isinstance(aj, tuple)) and isinstance(ei, basestring):
         if ('count_obs', obs) in accumilation_dict:
             accumilation_dict[('count_obs', obs)] = lu.logadd(accumilation_dict[('count_obs', obs)], posterior_unigram_val)
         else:
@@ -94,6 +108,7 @@ def do_accumilate_posterior_obs(accumilation_dict, obs, aj, ei, posterior_unigra
         return accumilation_dict
     else:
         print 'obs must be string, aj must be str, ei must be string'
+        # pdb.set_trace()
         exit()
 
 
@@ -153,7 +168,7 @@ def flatten_backpointers(bt):
 def get_viterbi_and_forward(obs_sequence, trelis, source_len):
     pi = {(0, (BOUNDRY_STATE, BOUNDRY_STATE)): 0.0}
     alpha_pi = {(0, (BOUNDRY_STATE, BOUNDRY_STATE)): 0.0}
-    #pi[(0, START_STATE)] = 1.0  # 0,START_STATE
+    # pi[(0, START_STATE)] = 1.0  # 0,START_STATE
     arg_pi = {(0, (BOUNDRY_STATE, BOUNDRY_STATE)): []}
     for k in range(1, len(obs_sequence)):  # the words are numbered from 1 to n, 0 is special start character
         for v in trelis[k]:  # [1]:
@@ -164,15 +179,22 @@ def get_viterbi_and_forward(obs_sequence, trelis, source_len):
             for u in trelis[k - 1]:  # [1]:
                 aj = v[0]
                 aj_1 = u[0]
-                #q = get_transition(aj, aj_1)
+                q_no_jump = get_transition(aj, aj_1)
                 q = get_jump_transition(aj, aj_1, source_len)
+                # if q == float('-inf'):
+                # print 'q is -inf', aj, aj_1, q_no_jump
+                # pdb.set_trace()
+
                 e = get_emission(target_token, source_token)
-                #print q, aj, aj_1, source_len, jump_key(aj, aj_1), jump_counts.get(jump_key(aj, aj_1), float('-inf')), jump_counts_iip.get(
-                #    jump_iip_key(source_len, aj_1), float('-inf')), jump_iip_key(source_len, aj_1)
-                #print k
-                #print v, '|', u
-                #print aj, '|', aj_1, '=', q
-                #print target_token, '|', source_token, '=', e
+                # if e == float('-inf'):
+                # print 'e is -inf'
+                # pdb.set_trace()
+                # print q, aj, aj_1, source_len, jump_key(aj, aj_1), jump_counts.get(jump_key(aj, aj_1), float('-inf')), jump_counts_iip.get(
+                # jump_iip_key(source_len, aj_1), float('-inf')), jump_iip_key(source_len, aj_1)
+                # print k
+                # print v, '|', u
+                # print aj, '|', aj_1, '=', q
+                # print target_token, '|', source_token, '=', e
                 p = pi[(k - 1, u)] + q + e
                 alpha_p = alpha_pi[(k - 1, u)] + q + e
                 if len(arg_pi[(k - 1, u)]) == 0:
@@ -185,9 +207,9 @@ def get_viterbi_and_forward(obs_sequence, trelis, source_len):
             max_bt = max_prob_to_bt[max(max_prob_to_bt)]
             new_pi_key = (k, v)
             pi[new_pi_key] = max(max_prob_to_bt)
-            #print 'mu   ', new_pi_key, '=', pi[new_pi_key], exp(pi[new_pi_key])
+            # print 'mu   ', new_pi_key, '=', pi[new_pi_key], exp(pi[new_pi_key])
             alpha_pi[new_pi_key] = lu.logadd_of_list(sum_prob_to_bt)
-            #print 'alpha', new_pi_key, '=', alpha_pi[new_pi_key], exp(alpha_pi[new_pi_key])
+            # print 'alpha', new_pi_key, '=', alpha_pi[new_pi_key], exp(alpha_pi[new_pi_key])
             arg_pi[new_pi_key] = max_bt
 
     max_bt = max_prob_to_bt[max(max_prob_to_bt)]
@@ -213,10 +235,10 @@ def get_backwards(obs, trelis, alpha_pi, source_len=None):
             p_unigrams = do_append_posterior_unigrams(p_unigrams, k, v, posterior_unigram_val)
 
             for u in trelis[k - 1]:
-                #print 'reverse transition', 'k', k, 'u', u, '->', 'v', v
+                # print 'reverse transition', 'k', k, 'u', u, '->', 'v', v
                 aj_1 = u[0]
                 q = get_jump_transition(aj, aj_1, source_len)
-                #q = get_transition(aj, aj_1)
+                # q = get_transition(aj, aj_1)
                 target_token = obs[k]
                 e = get_emission(target_token, source_token)
                 p = q + e
@@ -226,10 +248,10 @@ def get_backwards(obs, trelis, alpha_pi, source_len=None):
                     beta_pi[new_pi_key] = beta_p
                 else:
                     beta_pi[new_pi_key] = lu.logadd(beta_pi[new_pi_key], beta_p)
-                    #print 'beta     ', new_pi_key, '=', beta_pi[new_pi_key], exp(beta_pi[new_pi_key])
+                    # print 'beta     ', new_pi_key, '=', beta_pi[new_pi_key], exp(beta_pi[new_pi_key])
                 posterior_bigram_val = alpha_pi[(k - 1, u)] + p + beta_pi[(k, v)] - S
-                #posterior_bigram_val = "%.3f" % (exp(alpha_pi[(k - 1, u)] + p + beta_pi[(k, v)] - S))
-                #p_trans = do_accumilate_posterior_bigrams(p_trans, aj, aj_1, posterior_bigram_val)
+                # posterior_bigram_val = "%.3f" % (exp(alpha_pi[(k - 1, u)] + p + beta_pi[(k, v)] - S))
+                # p_trans = do_accumilate_posterior_bigrams(p_trans, aj, aj_1, posterior_bigram_val)
                 p_trans = do_accumilate_posterior_bigrams_jump(p_trans, aj, aj_1, posterior_bigram_val, source_len)
     return p_unigrams, p_trans, p_obs, S, beta_pi
 
@@ -364,9 +386,10 @@ def parseargs(args):
         print 'Usage: python model1.py -t [train target] -s [train source] -it [initial translations]' \
               ' -p [save translations] ' \
               '-a [save alignment test] -as [alignment test source] -at [alignment test target]'
-        return 'dummy.en', 'dummy.es', 'dummy.trans', 'dummy.align', 'hmm.trans', 'hmm.align', 'dummy.en', 'dummy.es'
-        #return 'corpus.en', 'corpus.es', 'model1-fwd-out.trans', 'model1-fwd-out.align', 'hmm.trans', 'hmm.align', 'dev.en', 'dev.es'
-        #exit()
+        # return 'dummy.en', 'dummy.es', 'dummy.trans', 'dummy.align', 'hmm.trans', 'hmm.align', 'dummy.en', 'dummy.es'
+        return 'data/corpus.en', 'data/corpus.es', 'data/model1.trans', 'data/model1.alignments', 'data/hmm.trans', 'data/hmm.alignments', 'data/dev.en', 'data/dev.es'
+        # return 'corpus.en', 'corpus.es', 'model1-fwd-out.trans', 'model1-fwd-out.align', 'hmm.trans', 'hmm.align', 'dev.en', 'dev.es'
+        # exit()
 
 
 def accumilate(accumilator, addition):
@@ -385,19 +408,24 @@ if __name__ == "__main__":
     source, target, init_translations, init_alignments, save_translations_learned, save_alignment_out, source_alignment_test, target_alignment_test = parseargs(
         sys.argv)
 
-    corpus_source = open(source, 'r').readlines()
-    corpus_target = open(target, 'r').readlines()
+    corpus_source = codecs.open(source, 'r', 'utf-8').readlines()
+    # corpus_source = open(source, 'r').readlines()
+    corpus_target = codecs.open(target, 'r', 'utf-8').readlines()
+    # corpus_target = open(target, 'r').readlines()
     z = [(s, t) for s, t in zip(corpus_source, corpus_target) if (s.strip() != '' and t.strip() != '')]
     cs, ct = zip(*z)
     corpus_source = list(cs)
     corpus_target = list(ct)
-    alignment_split = format_alignments(open(init_alignments, 'r').readlines())
-    init_translations = open(init_translations, 'r').readlines()
+    # alignment_split = format_alignments(open(init_alignments, 'r').readlines())
+    alignment_split = format_alignments(codecs.open(init_alignments, 'r', 'utf-8').readlines())
+    # init_translations = open(init_translations, 'r').readlines()
+    init_translations = codecs.open(init_translations, 'r', 'utf-8').readlines()
 
     source_split = [[BOUNDRY_STATE, 'NULL'] + i.split() + [BOUNDRY_STATE] for i in corpus_source]
 
     target_split = [[BOUNDRY_STATE] + i.split() + [BOUNDRY_STATE] for i in corpus_target]
     jump_counts, jump_counts_iip = get_jump_mle(alignment_split, source_split)
+    # pdb.set_trace()
     alignment_probs = get_alignment_mle(alignment_split)
     translations_probs = get_translation_mle(init_translations)
 
@@ -412,22 +440,29 @@ if __name__ == "__main__":
         posterior_transitions_accumilation = {}
         posterior_emission_accumilation = {}
         final_alignments = []
+        print ''
         for idx, (e, f, t) in enumerate(zip(source_split, target_split, trelis_split)):
+
             max_bt, max_p, alpha_pi = get_viterbi_and_forward(f, t, len(e))
-            #print 'max_p', max_p
+            # print 'max_p', max_p
             posterior_uni, posterior_trans, posterior_emission, S, beta_pi = get_backwards(f, t, alpha_pi, len(e))
             accu_alpha += S
             accu_mu += max_p
+            sys.stderr.write('iteration: %d sentence %d accumulated alpha %f\n' % (i, idx, accu_alpha))
+            sys.stderr.flush()
+            if accu_alpha == float('-inf'):
+                # print accu_alpha
+                pdb.set_trace()
             posterior_transitions_accumilation = accumilate(posterior_transitions_accumilation, posterior_trans)
             posterior_emission_accumilation = accumilate(posterior_emission_accumilation, posterior_emission)
             [out_alignments, out_emissions] = zip(*max_bt)
             final_alignments = final_alignments + list(out_alignments)
 
         update_translation_mle(posterior_emission_accumilation)
-        #update_alignment_mle(posterior_transitions_accumilation)
+        # update_alignment_mle(posterior_transitions_accumilation)
         update_jump_alignment_mle(posterior_transitions_accumilation)
         print 'iteration', i, 'mu', accu_mu, 'alpha', accu_alpha
-        #pdb.set_trace()
+        # pdb.set_trace()
         writer = open(save_alignment_out + '-' + str(i), 'w')
         ia = 0
         for aj in final_alignments:
