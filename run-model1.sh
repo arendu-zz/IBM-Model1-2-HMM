@@ -14,7 +14,7 @@ python model1.py -s $SOURCE -t $TARGET  -i data/initial.trans -p data/model1.tra
 
 # step 3
 # run model2 alignment using output from model1
-python model2.py -s $SOURCE -t $TARGET  -i data/model1.trans -p data/model2.trans -a data/model2.alignments  -as $DEV_SOURCE -at $DEV_TARGET
+#python model2.py -s $SOURCE -t $TARGET  -i data/model1.trans -p data/model2.trans -a data/model2.alignments  -as $DEV_SOURCE -at $DEV_TARGET
 
 # step 4
 # run hmm model alignment using output from model1
@@ -26,6 +26,6 @@ python hmm-jump-model.py  -s $SOURCE -t $TARGET -ia data/model1.alignments -it d
 # the f1 score should be 0.421 with these settings
 python eval_alignment.py data/dev.key data/model1.alignments
 # the f1 score should be 0.449 with these settings
-python eval_alignment.py data/dev.key data/model2.alignments
+#python eval_alignment.py data/dev.key data/model2.alignments
 # the f1 score should be more than 0.449 with these settings
 python eval_alignment.py data/dev.key data/hmm.alignments-4
