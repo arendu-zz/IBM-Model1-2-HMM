@@ -6,15 +6,18 @@ import pdb, codecs, sys
 
 
 BOUNDRY_STATE = "###"
+COUNT_TYPE = 'count'
 jump_counts = {}  # used to compute jump probabilities p(aj | aj-1, I)
 translations_probs = {}  # used to compute translation probabilities p(f_i | e_j)
 
 
-def jump_key(j1, j0):
-    if j1 == BOUNDRY_STATE or j0 == BOUNDRY_STATE:
-        return 'count', j1, j0
+def jump_key(j1, j0, sent_len):
+    if j1 == BOUNDRY_STATE:
+        return COUNT_TYPE, fabs(sent_len - j0)
+    elif j0 == BOUNDRY_STATE:
+        return COUNT_TYPE, j1
     else:
-        return 'count', fabs(j1 - j0)  # eq (5) assume non-negative jump widths!
+        return COUNT_TYPE, fabs(j1 - j0)  # eq (5) assume non-negative jump widths!
 
 
 def get_trellis(target_seq, source_seq):
@@ -42,17 +45,17 @@ def get_jump_transition(current_state, prev_state, sent_length):
     This method implements eq (5) in the Vogel & Ney paper (HMM-Based Word Alignment in Statistical Translation)
     it returns the probability P(aj | aj-1, L)
     '''
-    jkey = jump_key(current_state, prev_state)
+    jkey = jump_key(current_state, prev_state, sent_length)
     if jkey in jump_counts:
         # TODO this demon computation can be reused!
         # Another TODO: using a normal distribution to get probability of jump widths might be much faster!
         denom = float('-inf')
         for l in range(sent_length):
-            jl_key = jump_key(l, prev_state)
+            jl_key = jump_key(l, prev_state, sent_length)
             denom = lu.logadd(denom, jump_counts.get(jl_key, float('-inf')))
         return jump_counts[jkey] - denom
     else:
-        return float('-inf')
+        return -100.00
 
 
 def get_emission(obs, state):
@@ -93,7 +96,7 @@ def do_accumilate_posterior_obs(accumilation_dict, obs, aj, ei, posterior_unigra
 def do_accumilate_posterior_bigrams_jump(accumilation_dict, aj, aj_1, posterior_bigram_val, sent_length):
     # these are actual counts in log space!!
     if not isinstance(aj, tuple) or isinstance(aj_1, tuple):
-        jkey = jump_key(aj, aj_1)
+        jkey = jump_key(aj, aj_1, sent_length)
         accumilation_dict[jkey] = lu.logadd(accumilation_dict.get(jkey, float('-inf')), posterior_bigram_val)
         return accumilation_dict
     else:
@@ -141,6 +144,9 @@ def get_viterbi_and_forward(obs_sequence, trelis, source_len):
                 # print target_token, '|', source_token, '=', e
                 p = pi[(k - 1, u)] + q + e
                 alpha_p = alpha_pi[(k - 1, u)] + q + e
+                # print 'alpha_p', alpha_p
+                if alpha_p == float('-inf'):
+                    pdb.set_trace()
                 if len(arg_pi[(k - 1, u)]) == 0:
                     bt = [u]
                 else:
@@ -189,6 +195,7 @@ def get_backwards(obs, trelis, alpha_pi, source_len=None):
                     beta_pi[new_pi_key] = lu.logadd(beta_pi[new_pi_key], beta_p)
                 posterior_bigram_val = alpha_pi[(k - 1, u)] + p + beta_pi[(k, v)] - S
                 p_trans = do_accumilate_posterior_bigrams_jump(p_trans, aj, aj_1, posterior_bigram_val, source_len)
+
     return p_unigrams, p_trans, p_obs, S, beta_pi
 
 
@@ -217,14 +224,14 @@ def get_jump_mle(alignments_split, source_split):
     for a, s in zip(alignments_split, source_split):
         alignment_bigrams = [(a[i], a[i - 1]) for i in range(1, len(a))]
         for j1, j0 in alignment_bigrams:
-            jkey = jump_key(j1, j0)
+            jkey = jump_key(j1, j0, len(s))
             jcounts[jkey] = lu.logadd(jcounts.get(jkey, float('-inf')), 0.0)
     return jcounts
 
 
 def update_jump_alignment_mle(posterior_alignment_counts):
     for key in posterior_alignment_counts:
-        if key[0] == jump_key(0, 0)[0]:
+        if key[0] == COUNT_TYPE:
             jump_counts[key] = posterior_alignment_counts[key]
 
 
@@ -270,7 +277,8 @@ def parseargs(args):
         print 'Usage: python model1.py -t [train target] -s [train source] -it [initial translations]' \
               ' -p [save translations] ' \
               '-a [save alignment test] -as [alignment test source] -at [alignment test target]'
-        exit()
+        return 'data/corpus.en', 'data/corpus.es', 'data/model1.trans', 'data/model1.alignments', 'data/hmm.trans', 'data/hmm.alignments', 'data/dev.en', 'data/dev.es'
+        # exit()
 
 
 def accumilate(accumilator, addition):
@@ -306,20 +314,15 @@ if __name__ == "__main__":
     jump_counts = get_jump_mle(alignment_split, source_split)
     translations_probs = get_translation_mle(init_translations)
 
-    trelis_split = []
-    for e, f in zip(source_split, target_split):
-        t = get_trellis(f, e)
-        trelis_split.append(t)
-
-    for i in range(5):
+    for i in range(3):
         accu_alpha = 0.0
         accu_mu = 0.0
         posterior_transitions_accumilation = {}
         posterior_emission_accumilation = {}
         final_alignments = []
-        for idx, (e, f, t) in enumerate(zip(source_split, target_split, trelis_split)):
+        for idx, (e, f) in enumerate(zip(source_split, target_split)):
+            t = get_trellis(f, e)
             max_bt, max_p, alpha_pi = get_viterbi_and_forward(f, t, len(e))
-
             posterior_uni, posterior_trans, posterior_emission, S, beta_pi = get_backwards(f, t, alpha_pi, len(e))
             accu_alpha += S
             accu_mu += max_p
