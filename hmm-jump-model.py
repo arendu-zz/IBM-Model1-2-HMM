@@ -30,7 +30,7 @@ def get_trellis(target_seq, source_seq):
             tups = [(translations_probs.get((f, e), float('-inf')), f, (i + 1, e)) for i, e in enumerate(
                 source_seq[1:-1])]  # [1:-1] because we know that the boundry symbols dont emit any of the target tokens
             tups.sort(reverse=True)  # pick best candidates for translation
-            tups = tups[:10]  # beam limited to 5, 10, 15 etc
+            tups = tups[:5]  # beam limited to 5, 10, 15 etc
             tups.append((translations_probs[f, 'NULL'], f, (it, 'NULL')))
             (ps, fs, ts) = zip(*tups)
             t.append(list(ts))
