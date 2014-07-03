@@ -8,6 +8,7 @@ import pdb, codecs, sys
 BOUNDRY_STATE = "###"
 COUNT_TYPE = 'count'
 jump_counts = {}  # used to compute jump probabilities p(aj | aj-1, I)
+jump_denoms = {}  # book-keeping the denominators p(aj_1, I)
 translations_probs = {}  # used to compute translation probabilities p(f_i | e_j)
 
 
@@ -33,7 +34,7 @@ def get_trellis(target_seq, source_seq):
             tups = [(translations_probs.get((f, e), float('-inf')), f, (i + 1, e)) for i, e in enumerate(
                 source_seq[1:-1])]  # [1:-1] because we know that the boundry symbols dont emit any of the target tokens
             tups.sort(reverse=True)  # pick best candidates for translation
-            tups = tups[:10]  # beam limited to 5, 10, 15 etc
+            tups = tups[:5]  # beam limited to 5, 10, 15 etc
             tups.append((translations_probs[f, 'NULL'], f, (it, 'NULL')))
             (ps, fs, ts) = zip(*tups)
             t.append(list(ts))
@@ -47,12 +48,15 @@ def get_jump_transition(current_state, prev_state, sent_length):
     '''
     jkey = jump_key(current_state, prev_state, sent_length)
     if jkey in jump_counts:
-        # TODO this demon computation can be reused!
-        # Another TODO: using a normal distribution to get probability of jump widths might be much faster!
-        denom = float('-inf')
-        for l in range(sent_length):
-            jl_key = jump_key(l, prev_state, sent_length)
-            denom = lu.logadd(denom, jump_counts.get(jl_key, float('-inf')))
+        # TODO: using a normal distribution to get probability of jump widths might be much faster!
+        if (prev_state, sent_length) in jump_denoms:
+            denom = jump_denoms[(prev_state, sent_length)]
+        else:
+            denom = float('-inf')
+            for l in range(sent_length):
+                jl_key = jump_key(l, prev_state, sent_length)
+                denom = lu.logadd(denom, jump_counts.get(jl_key, float('-inf')))
+                jump_denoms[(prev_state, sent_length)] = denom
         return jump_counts[jkey] - denom
     else:
         return -100.00
@@ -230,6 +234,8 @@ def get_jump_mle(alignments_split, source_split):
 
 
 def update_jump_alignment_mle(posterior_alignment_counts):
+    global jump_denoms
+    jump_denoms = {}  # reset the denominators becuase the jump counts are going to change
     for key in posterior_alignment_counts:
         if key[0] == COUNT_TYPE:
             jump_counts[key] = posterior_alignment_counts[key]
