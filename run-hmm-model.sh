@@ -1,6 +1,6 @@
 #!/bin/sh
-SOURCE="data/corpus.en"
-TARGET="data/corpus.es"
+SOURCE="data/dev.en"
+TARGET="data/dev.es"
 DEV_SOURCE="data/dev.en"
 DEV_TARGET="data/dev.es"
 # step 1
@@ -24,8 +24,10 @@ python hmm-jump-model.py  -s $SOURCE -t $TARGET -ia data/model1.alignments -it d
 # report alignment error
 # provided with assignment
 # the f1 score should be 0.421 with these settings
+echo "*** Model 1 Evaluation ***"
 python eval_alignment.py data/dev.key data/model1.alignments
 # the f1 score should be 0.449 with these settings
 #python eval_alignment.py data/dev.key data/model2.alignments
 # the f1 score should be more than 0.449 with these settings
+echo "*** HMM Model Evaluation ***"
 python eval_alignment.py data/dev.key data/hmm.alignments-4
