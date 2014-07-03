@@ -1,6 +1,6 @@
 #!/bin/sh
-SOURCE="data/dev.en"
-TARGET="data/dev.es"
+SOURCE="data/corpus.en"
+TARGET="data/corpus.es"
 DEV_SOURCE="data/dev.en"
 DEV_TARGET="data/dev.es"
 # step 1
