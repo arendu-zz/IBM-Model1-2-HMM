@@ -39,7 +39,7 @@ def get_trelis(target_seq, source_seq):
                 tups = tups[:int(len(tups) * 0.1)]
             (ps, fs, ts) = zip(*tups)
             t.append(list(ts))
-    #pprint(trelis)
+    # pprint(trelis)
     #pprint(t)
     #pdb.set_trace()
     return t
@@ -132,7 +132,7 @@ def flatten_backpointers(bt):
 def get_viterbi_and_forward(obs_sequence, trelis):
     pi = {(0, (BOUNDRY_STATE, BOUNDRY_STATE)): 0.0}
     alpha_pi = {(0, (BOUNDRY_STATE, BOUNDRY_STATE)): 0.0}
-    #pi[(0, START_STATE)] = 1.0  # 0,START_STATE
+    # pi[(0, START_STATE)] = 1.0  # 0,START_STATE
     arg_pi = {(0, (BOUNDRY_STATE, BOUNDRY_STATE)): []}
     for k in range(1, len(obs_sequence)):  # the words are numbered from 1 to n, 0 is special start character
         for v in trelis[k]:  # [1]:
@@ -143,7 +143,6 @@ def get_viterbi_and_forward(obs_sequence, trelis):
             for u in trelis[k - 1]:  # [1]:
                 aj = v[0]
                 aj_1 = u[0]
-                pdb.set_trace()
                 q = get_transition(aj, aj_1)
                 e = get_emission(target_token, source_token)
                 #print k
@@ -190,7 +189,7 @@ def get_backwards(obs, trelis, alpha_pi):
             p_unigrams = do_append_posterior_unigrams(p_unigrams, k, v, posterior_unigram_val)
 
             for u in trelis[k - 1]:
-                #print 'reverse transition', 'k', k, 'u', u, '->', 'v', v
+                # print 'reverse transition', 'k', k, 'u', u, '->', 'v', v
                 aj_1 = u[0]
                 q = get_transition(aj, aj_1)
                 target_token = obs[k]
@@ -323,7 +322,7 @@ def parseargs(args):
         print 'Usage: python model1.py -t [train target] -s [train source] -ia [init alignments] -it [initial translations]' \
               ' -p [save translations] ' \
               '-a [save alignment test] -as [alignment test source] -at [alignment test target]'
-        #return 'dummy.en', 'dummy.es', 'dummy.trans', 'dummy.align', 'hmm.trans', 'hmm.align', 'dummy.en', 'dummy.es'
+        # return 'dummy.en', 'dummy.es', 'dummy.trans', 'dummy.align', 'hmm.trans', 'hmm.align', 'dummy.en', 'dummy.es'
         #return 'corpus.en', 'corpus.es', 'model1-fwd-out.trans', 'model1-fwd-out.align', 'hmm.trans', 'hmm.align', 'dev.en', 'dev.es'
         exit()
 
@@ -355,7 +354,7 @@ if __name__ == "__main__":
 
     alignment_probs = get_alignment_mle(alignment_split)
     translations_probs = get_translation_mle(init_translations)
-    #for obs, ps in zip(target_tokens, trelis):
+    # for obs, ps in zip(target_tokens, trelis):
     #    print obs, '<--', ps
     trelis_split = []
     for e, f in zip(source_split, target_split):
