@@ -277,8 +277,9 @@ def parseargs(args):
         print 'Usage: python model1.py -t [train target] -s [train source] -it [initial translations]' \
               ' -p [save translations] ' \
               '-a [save alignment test] -as [alignment test source] -at [alignment test target]'
-        return 'data/corpus.en', 'data/corpus.es', 'data/model1.trans', 'data/model1.alignments', 'data/hmm.trans', 'data/hmm.alignments', 'data/dev.en', 'data/dev.es'
-        # exit()
+        # return 'data/corpus.en', 'data/corpus.es', 'data/model1.trans', 'data/model1.alignments', 'data/hmm.trans',
+        # 'data/hmm.alignments', 'data/dev.en', 'data/dev.es'
+        exit()
 
 
 def accumilate(accumilator, addition):
@@ -351,3 +352,4 @@ if __name__ == "__main__":
                 w += 1
         writer.flush()
         writer.close()
+        # TODO this does not write the alignments for the test files at all!
