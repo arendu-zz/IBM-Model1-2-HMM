@@ -33,7 +33,7 @@ def get_trellis(target_seq, source_seq):
             tups = [(translations_probs.get((f, e), float('-inf')), f, (i + 1, e)) for i, e in enumerate(
                 source_seq[1:-1])]  # [1:-1] because we know that the boundry symbols dont emit any of the target tokens
             tups.sort(reverse=True)  # pick best candidates for translation
-            tups = tups[:5]  # beam limited to 5, 10, 15 etc
+            tups = tups[:3]  # beam limited to 5, 10, 15 etc
             tups.append((translations_probs[f, 'NULL'], f, (it, 'NULL')))
             (ps, fs, ts) = zip(*tups)
             t.append(list(ts))
@@ -299,8 +299,9 @@ if __name__ == "__main__":
         sys.argv)
 
     corpus_source = codecs.open(source, 'r', 'utf-8').readlines()
-
     corpus_target = codecs.open(target, 'r', 'utf-8').readlines()
+    dev_source = codecs.open(source_alignment_test, 'r', 'utf-8').readlines()
+    dev_target = codecs.open(target_alignment_test, 'r', 'utf-8').readlines()
 
     z = [(s, t) for s, t in zip(corpus_source, corpus_target) if (s.strip() != '' and t.strip() != '')]
     cs, ct = zip(*z)
@@ -310,7 +311,6 @@ if __name__ == "__main__":
     init_translations = codecs.open(init_translations, 'r', 'utf-8').readlines()
 
     source_split = [[BOUNDRY_STATE] + i.split() + [BOUNDRY_STATE] for i in corpus_source]
-
     target_split = [[BOUNDRY_STATE] + i.split() + [BOUNDRY_STATE] for i in corpus_target]
     jump_counts = get_jump_mle(alignment_split, source_split)
     translations_probs = get_translation_mle(init_translations)
@@ -340,16 +340,25 @@ if __name__ == "__main__":
         update_jump_alignment_mle(posterior_transitions_accumilation)
         print 'iteration', i, 'mu', accu_mu, 'alpha', accu_alpha
 
-        writer = open(save_alignment_out + '-' + str(i), 'w')
-        ia = 0
-        for aj in final_alignments:
-            if aj == '###':
-                ia += 1
-                w = 1
-            else:
-                if aj != 0:
-                    writer.write(str(ia) + ' ' + str(aj) + ' ' + str(w) + '\n')
-                w += 1
-        writer.flush()
-        writer.close()
-        # TODO this does not write the alignments for the test files at all!
+
+    # TODO this does not write the alignments for the test files at all!
+    dev_source_split = [[BOUNDRY_STATE] + i.split() + [BOUNDRY_STATE] for i in dev_source]
+    dev_target_split = [[BOUNDRY_STATE] + i.split() + [BOUNDRY_STATE] for i in dev_target]
+    final_alignments = []
+    for idx, (e, f) in enumerate(zip(dev_source_split, dev_target_split)):
+        t = get_trellis(f, e)
+        max_bt, max_p, alpha_pi = get_viterbi_and_forward(f, t, len(e))
+        [out_alignments, out_emissions] = zip(*max_bt)
+        final_alignments = final_alignments + list(out_alignments)
+    writer = open(save_alignment_out, 'w')
+    ia = 0
+    for aj in final_alignments:
+        if aj == '###':
+            ia += 1
+            w = 1
+        else:
+            if aj != 0:
+                writer.write(str(ia) + ' ' + str(aj) + ' ' + str(w) + '\n')
+            w += 1
+    writer.flush()
+    writer.close()

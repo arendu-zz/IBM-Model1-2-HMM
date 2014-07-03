@@ -1,6 +1,6 @@
 #!/bin/sh
-SOURCE="data/corpus.en"
-TARGET="data/corpus.es"
+SOURCE="data/dev.en"
+TARGET="data/dev.es"
 DEV_SOURCE="data/dev.en"
 DEV_TARGET="data/dev.es"
 # step 1
@@ -21,4 +21,4 @@ echo "*** Model 1 Evaluation ***"
 python eval_alignment.py data/dev.key data/model1.alignments
 # the f1 score should be more than 0.449 with these settings
 echo "*** HMM Model Evaluation ***"
-python eval_alignment.py data/dev.key data/hmm.alignments-2
+python eval_alignment.py data/dev.key data/hmm.alignments
